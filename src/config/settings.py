@@ -1,27 +1,41 @@
 import os
+from typing import Optional
 
 class Settings:
-    """Supabase PostgreSQL Configuration"""
+    """SQL Server Configuration"""
     
     def __init__(self):
-        # Supabase PostgreSQL
-        self.DB_HOST = "aws-0-ap-southeast-1.pooler.supabase.com"
-        self.DB_PORT = 6543
-        self.DB_NAME = "postgres"
-        self.DB_USER = "postgres.ydmmxivfmfgbbphmitgy"
-        self.DB_PASSWORD = "jsCvOpw2RbFdpf5L"
-        self.DB_TYPE = "postgresql"
+        # SQL Server Configuration
+        self.DB_HOST = os.getenv("DB_HOST", "localhost")
+        self.DB_PORT = int(os.getenv("DB_PORT", "1433"))
+        self.DB_NAME = os.getenv("DB_NAME", "ExcelImportDB")
+        self.DB_USER = os.getenv("DB_USER", "sa")
+        self.DB_PASSWORD = os.getenv("DB_PASSWORD", "YourStrongPassword123")
+        self.DB_TYPE = os.getenv("DB_TYPE", "mssql")
+        self.DB_DRIVER = os.getenv("DB_DRIVER", "ODBC Driver 17 for SQL Server")
         
         # Processing Configuration
-        self.BATCH_SIZE = 2000
-        self.MAX_WORKERS = 6
-        self.CHUNK_SIZE = 10000
+        self.BATCH_SIZE = int(os.getenv("BATCH_SIZE", "1000"))
+        self.MAX_WORKERS = int(os.getenv("MAX_WORKERS", "4"))
+        self.CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "5000"))
         
         # Logging
-        self.LOG_LEVEL = "INFO"
-        self.LOG_FILE = "logs/excel_to_db.log"
+        self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+        self.LOG_FILE = os.getenv("LOG_FILE", "logs/excel_to_sqlserver.log")
         
     def get_database_url(self) -> str:
-        return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?sslmode=require"
+        """สร้าง connection string สำหรับ SQL Server"""
+        return (
+            f"mssql+pyodbc://{self.DB_USER}:{self.DB_PASSWORD}@"
+            f"{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?"
+            f"driver={self.DB_DRIVER.replace(' ', '+')}&TrustServerCertificate=yes"
+        )
+    
+    def get_pymssql_url(self) -> str:
+        """Alternative connection string using pymssql"""
+        return (
+            f"mssql+pymssql://{self.DB_USER}:{self.DB_PASSWORD}@"
+            f"{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
 
 settings = Settings()

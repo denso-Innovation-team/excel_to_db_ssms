@@ -1,14 +1,7 @@
 import pandas as pd
 from sqlalchemy import (
-    text,
-    MetaData,
-    Table,
-    Column,
-    Integer,
-    String,
-    DateTime,
-    Float,
-    Boolean,
+    text, MetaData, Table, Column, Integer, String, 
+    DateTime, Float, Boolean, NVARCHAR
 )
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Dict, Any, List, Optional
@@ -34,7 +27,7 @@ class DatabaseWriter:
         primary_key: str = "id",
         type_mapping: Optional[Dict[str, str]] = None,
     ) -> None:
-        """Create table based on DataFrame structure"""
+        """สร้างตารางใน SQL Server ตาม DataFrame structure"""
         columns = [Column(primary_key, Integer, primary_key=True, autoincrement=True)]
 
         for col_name, dtype in df_sample.dtypes.items():
@@ -42,33 +35,43 @@ class DatabaseWriter:
                 continue
 
             if type_mapping and col_name in type_mapping:
-                sql_type = self._get_sqlalchemy_type(type_mapping[col_name])
+                sql_type = self._get_sqlserver_type(type_mapping[col_name])
             else:
-                sql_type = self._infer_sql_type(dtype)
+                sql_type = self._infer_sqlserver_type(dtype)
 
             columns.append(Column(col_name, sql_type))
+
+        # Drop table if exists (SQL Server specific)
+        try:
+            with self.engine.connect() as conn:
+                conn.execute(text(f"DROP TABLE IF EXISTS [{self.table_name}]"))
+                conn.commit()
+        except:
+            pass
 
         self.table = Table(self.table_name, self.metadata, *columns)
 
         try:
             self.metadata.create_all(self.engine)
-            logger.info(f"[SUCCESS] Table '{self.table_name}' created successfully")
+            logger.info(f"[SUCCESS] SQL Server table '{self.table_name}' created")
         except SQLAlchemyError as e:
-            logger.error(f"[ERROR] Error creating table: {e}")
+            logger.error(f"[ERROR] Error creating SQL Server table: {e}")
             raise
 
-    def _get_sqlalchemy_type(self, type_name: str):
+    def _get_sqlserver_type(self, type_name: str):
+        """แปลง type เป็น SQL Server types"""
         type_mapping = {
-            "string": String(255),
-            "text": String(1000),
+            "string": NVARCHAR(255),  # Unicode support
+            "text": NVARCHAR(1000),
             "integer": Integer,
             "float": Float,
             "boolean": Boolean,
             "datetime": DateTime,
         }
-        return type_mapping.get(type_name, String(255))
+        return type_mapping.get(type_name, NVARCHAR(255))
 
-    def _infer_sql_type(self, pandas_dtype):
+    def _infer_sqlserver_type(self, pandas_dtype):
+        """อนุมาน SQL Server type จาก pandas dtype"""
         if pd.api.types.is_integer_dtype(pandas_dtype):
             return Integer
         elif pd.api.types.is_float_dtype(pandas_dtype):
@@ -78,13 +81,24 @@ class DatabaseWriter:
         elif pd.api.types.is_datetime64_any_dtype(pandas_dtype):
             return DateTime
         else:
-            return String(255)
+            return NVARCHAR(255)  # Unicode support for Thai text
 
-    def bulk_insert_postgresql(self, df: pd.DataFrame) -> int:
-        """Optimized bulk insert for PostgreSQL/Supabase"""
+    def bulk_insert_sqlserver(self, df: pd.DataFrame) -> int:
+        """Optimized bulk insert สำหรับ SQL Server"""
         try:
+            # Clean DataFrame for SQL Server
+            df_clean = df.copy()
+            
+            # Convert datetime columns
+            for col in df_clean.columns:
+                if df_clean[col].dtype == 'datetime64[ns]':
+                    df_clean[col] = df_clean[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Replace NaN with None for SQL Server
+            df_clean = df_clean.where(pd.notnull(df_clean), None)
+            
             with self.engine.begin() as conn:
-                df.to_sql(
+                df_clean.to_sql(
                     name=self.table_name,
                     con=conn,
                     if_exists="append",
@@ -92,56 +106,19 @@ class DatabaseWriter:
                     method="multi",
                     chunksize=settings.BATCH_SIZE,
                 )
-                logger.info(f"[SUCCESS] Inserted {len(df)} rows to PostgreSQL")
+                logger.info(f"[SUCCESS] Inserted {len(df)} rows to SQL Server")
                 return len(df)
+                
         except SQLAlchemyError as e:
-            logger.error(f"[ERROR] PostgreSQL bulk insert error: {e}")
-            raise
-
-    def bulk_insert_mysql(self, df: pd.DataFrame) -> int:
-        try:
-            with self.engine.begin() as conn:
-                df.to_sql(
-                    name=self.table_name,
-                    con=conn,
-                    if_exists="append",
-                    index=False,
-                    method="multi",
-                    chunksize=settings.BATCH_SIZE,
-                )
-                logger.info(f"[SUCCESS] Inserted {len(df)} rows to MySQL")
-                return len(df)
-        except SQLAlchemyError as e:
-            logger.error(f"[ERROR] MySQL bulk insert error: {e}")
-            raise
-
-    def bulk_insert_generic(self, df: pd.DataFrame) -> int:
-        try:
-            with self.engine.begin() as conn:
-                df.to_sql(
-                    name=self.table_name,
-                    con=conn,
-                    if_exists="append",
-                    index=False,
-                    chunksize=settings.BATCH_SIZE,
-                )
-                logger.info(f"[SUCCESS] Inserted {len(df)} rows using generic method")
-                return len(df)
-        except SQLAlchemyError as e:
-            logger.error(f"[ERROR] Generic bulk insert error: {e}")
+            logger.error(f"[ERROR] SQL Server bulk insert error: {e}")
             raise
 
     def bulk_insert_batch(self, df: pd.DataFrame) -> int:
-        """Main bulk insert method with auto-detection"""
-        if settings.DB_TYPE == "postgresql":
-            return self.bulk_insert_postgresql(df)
-        elif settings.DB_TYPE == "mysql":
-            return self.bulk_insert_mysql(df)
-        else:
-            return self.bulk_insert_generic(df)
+        """Main bulk insert method สำหรับ SQL Server"""
+        return self.bulk_insert_sqlserver(df)
 
     def parallel_insert(self, dataframes: List[pd.DataFrame]) -> int:
-        """Insert multiple dataframes in parallel"""
+        """Insert multiple dataframes แบบ parallel"""
         total_inserted = 0
 
         with ThreadPoolExecutor(max_workers=settings.MAX_WORKERS) as executor:
@@ -161,31 +138,27 @@ class DatabaseWriter:
         return total_inserted
 
     def get_table_info(self) -> Dict[str, Any]:
-        """Get table information"""
+        """ดึงข้อมูลตารางจาก SQL Server"""
         try:
             with self.engine.connect() as conn:
-                result = conn.execute(text(f"SELECT COUNT(*) FROM {self.table_name}"))
+                # Count rows
+                result = conn.execute(text(f"SELECT COUNT(*) FROM [{self.table_name}]"))
                 row_count = result.fetchone()[0]
 
-                if settings.DB_TYPE == "postgresql":
-                    result = conn.execute(
-                        text(
-                            f"""
-                        SELECT column_name, data_type 
-                        FROM information_schema.columns 
-                        WHERE table_name = '{self.table_name}'
-                    """
-                        )
-                    )
-                    columns = result.fetchall()
-                else:
-                    columns = []
+                # Get column info
+                result = conn.execute(text(f"""
+                    SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_NAME = '{self.table_name}'
+                    ORDER BY ORDINAL_POSITION
+                """))
+                columns = result.fetchall()
 
                 return {
                     "table_name": self.table_name,
                     "row_count": row_count,
-                    "columns": columns,
+                    "columns": [(col[0], col[1], col[2]) for col in columns],
                 }
         except Exception as e:
-            logger.error(f"[ERROR] Error getting table info: {e}")
+            logger.error(f"[ERROR] Error getting SQL Server table info: {e}")
             return {"error": str(e)}
