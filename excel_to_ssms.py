@@ -112,7 +112,9 @@ class ExcelToSSMSProcessor:
     def process(self, create_table: bool = True, type_mapping: dict = None) -> dict:
         """Main processing method with optimized performance"""
 
-        self.logger.info(f"🚀 เริ่มประมวลผล: {self.excel_file.name} → {self.table_name}")
+        self.logger.info(
+            f"Starting process: {self.excel_file.name} → {self.table_name}"
+        )
 
         try:
             # Stage 1: File Analysis
@@ -135,7 +137,7 @@ class ExcelToSSMSProcessor:
                 time.time() - stage_start
             )
 
-            self.logger.info(f"🔍 ตรวจจับประเภทข้อมูล: {len(type_mapping)} คอลัมน์")
+            self.logger.info(f"Type detection: {len(type_mapping)} คอลัมน์")
 
             # Stage 3: Database Setup
             stage_start = time.time()
@@ -147,7 +149,7 @@ class ExcelToSSMSProcessor:
                 self.writer.create_table_from_dataframe(
                     typed_df, type_mapping=type_mapping
                 )
-                self.logger.info(f"✅ สร้างตาราง '{self.table_name}' เรียบร้อย")
+                self.logger.info(f"Created table '{self.table_name}' เรียบร้อย")
 
             self.metrics["processing_stages"]["database_setup"] = (
                 time.time() - stage_start
@@ -225,7 +227,7 @@ class ExcelToSSMSProcessor:
             return {"success": True, "metrics": self.metrics, "table_info": table_info}
 
         except Exception as e:
-            self.logger.error(f"❌ การประมวลผลล้มเหลว: {e}")
+            self.logger.error(f"Processing failed: {e}")
             return {"success": False, "error": str(e), "metrics": self.metrics}
 
         finally:
@@ -261,7 +263,6 @@ class ExcelToSSMSProcessor:
 
         # Database info
         print(f"\n🗄️ ข้อมูลในฐานข้อมูล:")
-        print(f"  • Server: {settings.DB_HOST}:{settings.DB_PORT}")
         print(f"  • Database: {settings.DB_NAME}")
         print(f"  • Table: {self.table_name}")
         print(f"  • Rows in table: {table_info.get('row_count', 0):,}")
