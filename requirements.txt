@@ -1,13 +1,29 @@
-# Excel to SQL Server - Fixed Requirements
-# แก้ไขปัญหา pymssql compilation error
+# Excel to SSMS - Production Requirements
 
+# Core Data Processing  
 pandas>=2.0.0
-sqlalchemy>=2.0.0
-openpyxl>=3.1.0
-pyodbc>=4.0.0
-python-dotenv>=1.0.0
-tqdm>=4.65.0
-pydantic>=2.0.0
+numpy>=1.24.0
 
-# Note: pymssql removed due to Python 3.13 compatibility issues
-# จะใช้เฉพาะ pyodbc สำหรับ SQL Server connection
+# Database & SQL Server
+sqlalchemy>=2.0.0
+pyodbc>=4.0.39
+
+# Excel Processing
+openpyxl>=3.1.0
+xlrd>=2.0.1
+
+# Configuration & Environment
+python-dotenv>=1.0.0
+
+# Progress & Monitoring  
+tqdm>=4.65.0
+
+# Performance & Utilities
+psutil>=5.9.0
+
+# Development & Testing (Optional)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Note: concurrent.futures เป็น built-in module ใน Python 3.2+
+# Note: pydantic, colorlog, memory-profiler ลบออกเพื่อลดความซับซ้อน
