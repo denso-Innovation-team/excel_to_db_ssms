@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Excel to SSMS - Main CLI Interface
-นำเข้าข้อมูลจาก Excel เข้า SQL Server Management Studio อย่างมีประสิทธิภาพ
+Excel to SSMS - Fixed Version
 """
 
 import sys
@@ -23,7 +22,7 @@ from src.utils.progress import ProgressTracker
 
 
 class ExcelToSSMSProcessor:
-    """Main processor for Excel → SQL Server with connection pooling"""
+    """Fixed processor for Excel → SQL Server"""
 
     def __init__(self, excel_file: str, table_name: str, sheet_name: str = None):
         self.excel_file = Path(excel_file)
@@ -65,11 +64,6 @@ class ExcelToSSMSProcessor:
         # Test database connection
         if not db_manager.test_connection():
             self.logger.error("❌ ไม่สามารถเชื่อมต่อ SQL Server ได้")
-            print("\n💡 แนวทางแก้ไข:")
-            print("  1. ตรวจสอบ SQL Server ทำงานอยู่หรือไม่")
-            print("  2. ตรวจสอบข้อมูลใน .env file")
-            print("  3. ติดตั้ง ODBC Driver 17 for SQL Server")
-            print("  4. รัน: python test_connection.py")
             return False
 
         return True
@@ -78,21 +72,10 @@ class ExcelToSSMSProcessor:
         """Auto-detect column data types from names"""
         type_mapping = {}
 
-        # Thai and English patterns
         patterns = {
-            "datetime": ["date", "time", "วันที่", "เวลา", "created", "updated", "join"],
-            "integer": ["id", "age", "count", "number", "จำนวน", "อายุ", "เลขที่"],
-            "float": [
-                "price",
-                "salary",
-                "amount",
-                "total",
-                "value",
-                "ราคา",
-                "เงินเดือน",
-                "ยอด",
-                "จำนวนเงิน",
-            ],
+            "datetime": ["date", "time", "วันที่", "เวลา", "created", "updated"],
+            "integer": ["id", "age", "count", "number", "จำนวน", "อายุ"],
+            "float": ["price", "salary", "amount", "total", "value", "ราคา", "เงินเดือน"],
             "boolean": ["active", "enabled", "is_", "has_", "flag"],
         }
 
@@ -110,7 +93,7 @@ class ExcelToSSMSProcessor:
         return type_mapping
 
     def process(self, create_table: bool = True, type_mapping: dict = None) -> dict:
-        """Main processing method with optimized performance"""
+        """Fixed processing method"""
 
         self.logger.info(
             f"Starting process: {self.excel_file.name} → {self.table_name}"
@@ -137,8 +120,6 @@ class ExcelToSSMSProcessor:
                 time.time() - stage_start
             )
 
-            self.logger.info(f"Type detection: {len(type_mapping)} คอลัมน์")
-
             # Stage 3: Database Setup
             stage_start = time.time()
             if create_table:
@@ -149,59 +130,58 @@ class ExcelToSSMSProcessor:
                 self.writer.create_table_from_dataframe(
                     typed_df, type_mapping=type_mapping
                 )
-                self.logger.info(f"Created table '{self.table_name}' เรียบร้อย")
+                self.logger.info(f"✅ Created table '{self.table_name}'")
 
             self.metrics["processing_stages"]["database_setup"] = (
                 time.time() - stage_start
             )
 
-            # Stage 4: Data Processing with Progress Tracking
+            # Stage 4: Data Processing - FIXED VERSION
             stage_start = time.time()
+
+            # Reset reader to start from beginning
+            self.reader = ExcelReader(str(self.excel_file), self.sheet_name)
 
             with ProgressTracker(
                 total=self.metrics["total_rows"],
                 description=f"Importing to {self.table_name}",
             ) as progress:
 
-                # Process in optimized chunks
-                batch_chunks = []
-                chunk_count = 0
-
+                # Sequential processing instead of parallel (more stable)
                 for chunk in self.reader.read_chunks(chunk_size=settings.CHUNK_SIZE):
-                    chunk_count += 1
-
                     # Clean and validate data
                     clean_chunk = self.validator.clean_dataframe(chunk)
                     typed_chunk = self.validator.validate_data_types(
                         clean_chunk, type_mapping
                     )
 
-                    batch_chunks.append(typed_chunk)
-                    self.metrics["processed_rows"] += len(typed_chunk)
-
-                    # Process batches in parallel when we have enough chunks
-                    if len(batch_chunks) >= settings.MAX_WORKERS:
-                        inserted = self.writer.parallel_insert(batch_chunks)
+                    # Single-threaded insert (more reliable)
+                    try:
+                        inserted = self.writer.bulk_insert_batch(typed_chunk)
                         self.metrics["inserted_rows"] += inserted
+                        self.metrics["processed_rows"] += len(typed_chunk)
 
                         # Update progress
-                        progress.update(sum(len(chunk) for chunk in batch_chunks))
+                        progress.update(len(typed_chunk))
+
+                        # Calculate speed
+                        elapsed = time.time() - self.metrics["start_time"]
+                        speed = (
+                            self.metrics["inserted_rows"] / elapsed
+                            if elapsed > 0
+                            else 0
+                        )
+
                         progress.set_postfix(
                             {
-                                "Speed": f"{inserted/settings.CHUNK_SIZE:.0f} rows/s",
-                                "Pool": str(
-                                    db_manager.get_pool_status()["checked_out"]
-                                ),
+                                "Speed": f"{speed:.0f} rows/s",
+                                "Inserted": f"{self.metrics['inserted_rows']:,}",
                             }
                         )
 
-                        batch_chunks = []
-
-                # Process remaining chunks
-                if batch_chunks:
-                    inserted = self.writer.parallel_insert(batch_chunks)
-                    self.metrics["inserted_rows"] += inserted
-                    progress.update(sum(len(chunk) for chunk in batch_chunks))
+                    except Exception as e:
+                        self.logger.error(f"❌ Chunk insert failed: {e}")
+                        self.metrics["failed_rows"] += len(typed_chunk)
 
             self.metrics["processing_stages"]["data_processing"] = (
                 time.time() - stage_start
@@ -255,24 +235,11 @@ class ExcelToSSMSProcessor:
         print(f"⏱️ เวลาทั้งหมด: {self.metrics['total_time']:.2f} วินาที")
         print(f"🚀 ความเร็ว: {self.metrics['rows_per_second']:.0f} แถว/วินาที")
 
-        # Stage breakdown
-        print(f"\n📈 การแบ่งเวลาตามขั้นตอน:")
-        for stage, duration in self.metrics["processing_stages"].items():
-            percentage = (duration / self.metrics["total_time"]) * 100
-            print(f"  • {stage}: {duration:.2f}s ({percentage:.1f}%)")
-
         # Database info
         print(f"\n🗄️ ข้อมูลในฐานข้อมูล:")
         print(f"  • Database: {settings.DB_NAME}")
         print(f"  • Table: {self.table_name}")
         print(f"  • Rows in table: {table_info.get('row_count', 0):,}")
-
-        # Connection pool status
-        pool_status = db_manager.get_pool_status()
-        print(f"\n🔗 Connection Pool Status:")
-        print(f"  • Total connections: {pool_status['total_connections']}")
-        print(f"  • Active: {pool_status['checked_out']}")
-        print(f"  • Available: {pool_status['checked_in']}")
 
 
 def main():
@@ -281,28 +248,13 @@ def main():
     if len(sys.argv) < 3:
         print(
             """
-🎯 Excel to SSMS - Advanced Excel Import System
+🎯 Excel to SSMS - Fixed Version
 
 Usage:
   python excel_to_ssms.py <excel_file> <table_name> [sheet_name]
 
 Examples:
-  python excel_to_ssms.py data.xlsx employees
-  python excel_to_ssms.py sales.xlsx sales_data "Sheet1"
-  python excel_to_ssms.py "C:/path/data.xlsx" customer_data
-
-Features:
-  ✅ Connection pooling สำหรับประสิทธิภาพสูง
-  ✅ Parallel processing หลาย threads
-  ✅ Auto-detect column types (Thai/English)
-  ✅ Progress tracking แบบ real-time
-  ✅ Error handling ครอบคลุม
-  ✅ Unicode support (ภาษาไทย)
-
-Requirements:
-  • SQL Server พร้อม SSMS
-  • ODBC Driver 17 for SQL Server
-  • Python packages ตาม requirements.txt
+  python excel_to_ssms.py sales_50000.xlsx sales_data
         """
         )
         sys.exit(1)
@@ -319,24 +271,17 @@ Requirements:
     if not processor.validate_inputs():
         sys.exit(1)
 
-    # Process with performance monitoring
+    # Process
     print(f"🚀 Excel to SSMS: {Path(excel_file).name} → {table_name}")
     print("=" * 60)
 
-    # Show pool status
-    pool_status = db_manager.get_pool_status()
-    print(f"🔗 Connection Pool: {pool_status['total_connections']} connections ready")
-
-    # Process
     results = processor.process(create_table=True)
 
     if results["success"]:
         print(f"\n💡 ตรวจสอบข้อมูลใน SSMS:")
-        print(f"   1. เปิด SQL Server Management Studio")
-        print(f"   2. Connect to: {settings.DB_HOST}")
-        print(f"   3. Database: {settings.DB_NAME}")
-        print(f"   4. Tables → {table_name}")
-        print(f"   5. Right-click → Select Top 1000 Rows")
+        print(f"   Server: {settings.DB_HOST}")
+        print(f"   Database: {settings.DB_NAME}")
+        print(f"   Table: {table_name}")
     else:
         print(f"\n❌ การประมวลผลล้มเหลว: {results['error']}")
         sys.exit(1)

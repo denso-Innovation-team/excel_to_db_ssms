@@ -58,7 +58,7 @@ def test_direct_connection():
         # Connection string for your server
         conn_str = (
             "DRIVER={ODBC Driver 17 for SQL Server};"
-            "SERVER=10.73.148.27;"
+            "SERVER=10.73.148.27\MSSQL2S;"
             "DATABASE=master;"
             "UID=TS00029;"
             "PWD=Thammaphon@TS00029;"
