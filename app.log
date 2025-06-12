@@ -1,0 +1,31 @@
+2025-06-12 22:26:20,884 - __main__ - ERROR - Fatal error occurred
+Traceback (most recent call last):
+  File "E:\GitHub\Project\excel_to_db_ssms\main.py", line 37, in main
+    app = DENSO888MainWindow()
+  File "E:\GitHub\Project\excel_to_db_ssms\gui\main_window.py", line 336, in __init__
+    from config.settings import get_config
+  File "E:\GitHub\Project\excel_to_db_ssms\config\__init__.py", line 5, in <module>
+    from .settings import get_config, AppConfig, DatabaseConfig, ProcessingConfig
+  File "E:\GitHub\Project\excel_to_db_ssms\config\settings.py", line 50, in <module>
+    @dataclass
+     ^^^^^^^^^
+  File "C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\dataclasses.py", line 1305, in dataclass
+    return wrap(cls)
+  File "C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\dataclasses.py", line 1295, in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+                          frozen, match_args, kw_only, slots,
+                          weakref_slot)
+  File "C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\dataclasses.py", line 1008, in _process_class
+    cls_fields.append(_get_field(cls, name, type, kw_only))
+                      ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\AppData\Local\Programs\Python\Python313\Lib\dataclasses.py", line 860, in _get_field
+    raise ValueError(f'mutable default {type(f.default)} for field '
+                     f'{f.name} is not allowed: use default_factory')
+ValueError: mutable default <class 'config.settings.UIConfig'> for field ui is not allowed: use default_factory
+2025-06-12 22:53:39,083 - __main__ - ERROR - Environment check failed: Can't find a usable init.tcl in the following directories: 
+    C:/Users/User/AppData/Local/Programs/Python/Python313/lib/tcl8.6 C:/lib/tcl8.6 C:/lib/tcl8.6 C:/library C:/library C:/tcl8.6.15/library C:/tcl8.6.15/library
+
+
+
+This probably means that Tcl wasn't installed properly.
+

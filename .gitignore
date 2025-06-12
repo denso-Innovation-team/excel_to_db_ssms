@@ -1,12 +1,8 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -29,23 +25,6 @@ MANIFEST
 *.manifest
 *.spec
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
 # Environments
 .env
 .venv
@@ -55,12 +34,13 @@ ENV/
 env.bak/
 venv.bak/
 
-# Excel to SSMS specific
+# DENSO888 specific
 logs/*.log
-data/samples/*.xlsx
-data/samples/*.xls
+assets/samples/*.xlsx
+assets/samples/*.xls
 *.tmp
 *.temp
+*.db
 
 # IDE
 .vscode/
@@ -73,7 +53,6 @@ data/samples/*.xls
 .DS_Store
 Thumbs.db
 
-# SQL Server
-*.bak
-*.ldf
-*.mdf
+# Build output
+dist/
+build/
