@@ -6,10 +6,7 @@ Excel to SSMS - Fixed Complete System
 
 import pandas as pd
 import sqlalchemy as sa
-from sqlalchemy import (
-    create_engine,
-    text,
-)
+from sqlalchemy import create_engine, text
 import os
 import sys
 import time
@@ -19,6 +16,7 @@ from typing import Dict, Any, Optional, Iterator
 from urllib.parse import quote_plus
 from tqdm import tqdm
 from datetime import datetime
+import pyodbc
 
 
 # =================== CONFIGURATION ===================
@@ -27,60 +25,32 @@ class Config:
 
     def __init__(self):
         self.DB_HOST = os.getenv("DB_HOST", "10.73.148.27")
-        self.DB_PORT = os.getenv("DB_PORT", "1433")
         self.DB_NAME = os.getenv("DB_NAME", "excel_to_db")
         self.DB_USER = os.getenv("DB_USER", "TS00029")
         self.DB_PASSWORD = os.getenv("DB_PASSWORD", "Thammaphon@TS00029")
-        self.POOL_SIZE = int(os.getenv("POOL_SIZE", "5"))
-        self.MAX_OVERFLOW = int(os.getenv("MAX_OVERFLOW", "10"))
-        self.BATCH_SIZE = int(os.getenv("BATCH_SIZE", "2000"))
-        self.MAX_WORKERS = int(os.getenv("MAX_WORKERS", "4"))
+        self.BATCH_SIZE = int(os.getenv("BATCH_SIZE", "1000"))
         self.CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "5000"))
-        self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
     def get_connection_url(self) -> str:
         """สร้าง SQLAlchemy connection URL"""
         password_encoded = quote_plus(self.DB_PASSWORD)
         return (
             f"mssql+pyodbc://{self.DB_USER}:{password_encoded}@"
-            f"{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?"
+            f"{self.DB_HOST}/{self.DB_NAME}?"
             f"driver=ODBC+Driver+17+for+SQL+Server&"
-            f"TrustServerCertificate=yes&Encrypt=no&timeout=30"
+            f"TrustServerCertificate=yes&Encrypt=no"
         )
 
     def get_direct_connection_string(self) -> str:
         """สร้าง pyodbc connection string"""
         return (
             f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-            f"SERVER={self.DB_HOST},{self.DB_PORT};"
+            f"SERVER={self.DB_HOST};"
             f"DATABASE={self.DB_NAME};"
             f"UID={self.DB_USER};"
             f"PWD={self.DB_PASSWORD};"
-            f"TrustServerCertificate=yes;Encrypt=no;Timeout=30;"
+            f"TrustServerCertificate=yes;Encrypt=no;"
         )
-
-
-# =================== LOGGER SETUP ===================
-def setup_logger() -> logging.Logger:
-    """ตั้งค่า logging"""
-    logger = logging.getLogger("excel_to_ssms")
-    logger.setLevel(logging.INFO)
-
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_formatter = logging.Formatter("%(levelname)s - %(message)s")
-    console_handler.setFormatter(console_formatter)
-    logger.addHandler(console_handler)
-
-    try:
-        Path("logs").mkdir(exist_ok=True)
-        file_handler = logging.FileHandler("logs/excel_to_ssms.log", encoding="utf-8")
-        file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        file_handler.setFormatter(file_formatter)
-        logger.addHandler(file_handler)
-    except Exception:
-        pass
-
-    return logger
 
 
 # =================== DATABASE MANAGER ===================
@@ -90,31 +60,24 @@ class DatabaseManager:
     def __init__(self, config: Config):
         self.config = config
         self.engine = None
-        self.logger = setup_logger()
 
     def create_engine(self) -> bool:
         """สร้าง SQLAlchemy engine"""
         try:
             connection_url = self.config.get_connection_url()
             self.engine = create_engine(
-                connection_url,
-                pool_size=self.config.POOL_SIZE,
-                max_overflow=self.config.MAX_OVERFLOW,
-                pool_timeout=30,
-                pool_recycle=3600,
-                pool_pre_ping=True,
-                echo=False,
+                connection_url, pool_size=3, max_overflow=5, pool_timeout=30, echo=False
             )
 
             with self.engine.connect() as conn:
                 result = conn.execute(text("SELECT @@SERVERNAME, DB_NAME()"))
                 server, database = result.fetchone()
-                self.logger.info(f"✅ Connected to: {server}/{database}")
+                print(f"✅ Connected to: {server}/{database}")
 
             return True
 
         except Exception as e:
-            self.logger.error(f"❌ Database connection failed: {e}")
+            print(f"❌ Database connection failed: {e}")
             return False
 
     def test_connection(self) -> bool:
@@ -127,23 +90,8 @@ class DatabaseManager:
                 result = conn.execute(text("SELECT 1"))
                 return result.fetchone()[0] == 1
         except Exception as e:
-            self.logger.error(f"Connection test failed: {e}")
+            print(f"Connection test failed: {e}")
             return False
-
-    def execute_sql(self, sql: str, params: dict = None) -> Any:
-        """Execute SQL command"""
-        try:
-            with self.engine.connect() as conn:
-                result = (
-                    conn.execute(text(sql), params)
-                    if params
-                    else conn.execute(text(sql))
-                )
-                conn.commit()
-                return result
-        except Exception as e:
-            self.logger.error(f"SQL execution failed: {e}")
-            raise
 
 
 # =================== EXCEL READER ===================
@@ -153,16 +101,13 @@ class ExcelReader:
     def __init__(self, file_path: str, sheet_name: Optional[str] = None):
         self.file_path = Path(file_path)
         self.sheet_name = sheet_name
-        self.logger = setup_logger()
 
     def validate_file(self) -> bool:
         """ตรวจสอบไฟล์ Excel"""
         if not self.file_path.exists():
             raise FileNotFoundError(f"File not found: {self.file_path}")
-
         if self.file_path.suffix.lower() not in [".xlsx", ".xls"]:
             raise ValueError("File must be Excel format (.xlsx or .xls)")
-
         return True
 
     def get_file_info(self) -> Dict[str, Any]:
@@ -188,7 +133,7 @@ class ExcelReader:
                 }
 
         except Exception as e:
-            self.logger.error(f"Error reading Excel file: {e}")
+            print(f"Error reading Excel file: {e}")
             raise
 
     def read_chunks(self, chunk_size: int = 5000) -> Iterator[pd.DataFrame]:
@@ -199,6 +144,7 @@ class ExcelReader:
             target_sheet = self.sheet_name or 0
             df_full = pd.read_excel(self.file_path, sheet_name=target_sheet)
             total_rows = len(df_full)
+
             for start_idx in range(0, total_rows, chunk_size):
                 end_idx = min(start_idx + chunk_size, total_rows)
                 chunk = df_full.iloc[start_idx:end_idx].copy()
@@ -207,7 +153,7 @@ class ExcelReader:
                     yield chunk
 
         except Exception as e:
-            self.logger.error(f"Error reading Excel chunks: {e}")
+            print(f"Error reading Excel chunks: {e}")
             raise
 
 
@@ -215,15 +161,17 @@ class ExcelReader:
 class DataValidator:
     """ตรวจสอบและทำความสะอาดข้อมูล"""
 
-    def __init__(self):
-        self.logger = setup_logger()
-
     def clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """ทำความสะอาด DataFrame"""
         df_clean = df.copy()
+
+        # Clean column names
         df_clean.columns = [self._clean_column_name(col) for col in df_clean.columns]
+
+        # Remove empty rows
         df_clean = df_clean.dropna(how="all")
 
+        # Clean string columns
         for col in df_clean.select_dtypes(include=["object"]).columns:
             df_clean[col] = (
                 df_clean[col].astype(str).str.strip().replace(["nan", "None", ""], None)
@@ -270,7 +218,7 @@ class DataValidator:
                         .isin(["true", "1", "yes", "y"])
                     )
             except Exception as e:
-                self.logger.warning(f"Type conversion failed for {column}: {e}")
+                print(f"Type conversion failed for {column}: {e}")
 
         return df_typed
 
@@ -282,13 +230,13 @@ class DatabaseWriter:
     def __init__(self, table_name: str, db_manager: DatabaseManager):
         self.table_name = table_name
         self.db_manager = db_manager
-        self.logger = setup_logger()
 
     def create_table_from_dataframe(
         self, df_sample: pd.DataFrame, type_mapping: Dict[str, str] = None
     ):
-        """สร้างตารางจาก DataFrame"""
+        """สร้างตารางจาก DataFrame - Fixed SQL syntax"""
         try:
+            # Build column definitions
             columns_sql = ["id INT IDENTITY(1,1) PRIMARY KEY"]
 
             for col_name, dtype in df_sample.dtypes.items():
@@ -297,18 +245,27 @@ class DatabaseWriter:
                 else:
                     sql_type = self._infer_sql_type(dtype)
 
+                # Use square brackets for column names
                 columns_sql.append(f"[{col_name}] {sql_type}")
 
+            # Create SQL statements
             drop_sql = f"IF OBJECT_ID('{self.table_name}', 'U') IS NOT NULL DROP TABLE [{self.table_name}]"
             create_sql = f"CREATE TABLE [{self.table_name}] ({', '.join(columns_sql)})"
 
-            self.db_manager.execute_sql(drop_sql)
-            self.db_manager.execute_sql(create_sql)
-
-            self.logger.info(f"✅ Table '{self.table_name}' created successfully")
+            # Execute SQL
+            with self.db_manager.engine.connect() as conn:
+                trans = conn.begin()
+                try:
+                    conn.execute(text(drop_sql))
+                    conn.execute(text(create_sql))
+                    trans.commit()
+                    print(f"✅ Table '{self.table_name}' created successfully")
+                except Exception as e:
+                    trans.rollback()
+                    raise e
 
         except Exception as e:
-            self.logger.error(f"❌ Table creation failed: {e}")
+            print(f"❌ Table creation failed: {e}")
             raise
 
     def _get_sql_type(self, type_name: str) -> str:
@@ -337,10 +294,11 @@ class DatabaseWriter:
             return "NVARCHAR(255)"
 
     def bulk_insert(self, df: pd.DataFrame) -> int:
-        """แทรกข้อมูลแบบ bulk"""
+        """แทรกข้อมูลแบบ bulk - Fixed method"""
         try:
             df_clean = df.copy()
 
+            # Handle datetime columns
             for col in df_clean.columns:
                 if pd.api.types.is_datetime64_any_dtype(df_clean[col]):
                     df_clean[col] = (
@@ -349,8 +307,10 @@ class DatabaseWriter:
                         .replace("NaT", None)
                     )
 
+            # Replace NaN with None
             df_clean = df_clean.where(pd.notnull(df_clean), None)
 
+            # Use to_sql for bulk insert
             with self.db_manager.engine.begin() as conn:
                 df_clean.to_sql(
                     name=self.table_name,
@@ -362,38 +322,39 @@ class DatabaseWriter:
                 )
 
             rows_inserted = len(df_clean)
-            self.logger.info(f"✅ Inserted {rows_inserted:,} rows")
+            print(f"✅ Inserted {rows_inserted:,} rows")
             return rows_inserted
 
         except Exception as e:
-            self.logger.error(f"❌ Bulk insert failed: {e}")
+            print(f"❌ Bulk insert failed: {e}")
             raise
 
     def get_table_info(self) -> Dict[str, Any]:
         """ดึงข้อมูลตาราง"""
         try:
-            result = self.db_manager.execute_sql(
-                f"SELECT COUNT(*) FROM [{self.table_name}]"
-            )
-            row_count = result.fetchone()[0]
+            with self.db_manager.engine.connect() as conn:
+                # Get row count
+                result = conn.execute(text(f"SELECT COUNT(*) FROM [{self.table_name}]"))
+                row_count = result.fetchone()[0]
 
-            columns_sql = f"""
-                SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
-                FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE TABLE_NAME = '{self.table_name}'
-                ORDER BY ORDINAL_POSITION
-            """
-            result = self.db_manager.execute_sql(columns_sql)
-            columns = [(row[0], row[1], row[2]) for row in result.fetchall()]
+                # Get column info
+                columns_sql = f"""
+                    SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_NAME = '{self.table_name}'
+                    ORDER BY ORDINAL_POSITION
+                """
+                result = conn.execute(text(columns_sql))
+                columns = [(row[0], row[1], row[2]) for row in result.fetchall()]
 
-            return {
-                "table_name": self.table_name,
-                "row_count": row_count,
-                "columns": columns,
-            }
+                return {
+                    "table_name": self.table_name,
+                    "row_count": row_count,
+                    "columns": columns,
+                }
 
         except Exception as e:
-            self.logger.error(f"❌ Get table info failed: {e}")
+            print(f"❌ Get table info failed: {e}")
             return {"error": str(e)}
 
 
@@ -405,7 +366,6 @@ class ExcelToSSMSProcessor:
         self.excel_file = excel_file
         self.table_name = table_name
         self.sheet_name = sheet_name
-        self.logger = setup_logger()
 
         self.config = Config()
         self.db_manager = DatabaseManager(self.config)
@@ -442,16 +402,17 @@ class ExcelToSSMSProcessor:
         start_time = time.time()
 
         try:
-            self.logger.info("🔍 Testing database connection...")
+            print("🔍 Testing database connection...")
             if not self.db_manager.test_connection():
                 raise Exception("Cannot connect to SQL Server")
 
-            self.logger.info("📊 Analyzing Excel file...")
+            print("📊 Analyzing Excel file...")
             file_info = self.reader.get_file_info()
-            self.logger.info(
+            print(
                 f"File: {file_info['total_rows']:,} rows, {file_info['file_size_mb']:.1f} MB"
             )
 
+            # Auto-detect column types
             type_mapping = self.auto_detect_types(file_info["columns"])
 
             total_inserted = 0
@@ -461,15 +422,18 @@ class ExcelToSSMSProcessor:
                 total=file_info["total_rows"], desc="Processing", unit="rows"
             ) as pbar:
                 for chunk in self.reader.read_chunks(self.config.CHUNK_SIZE):
+                    # Clean and validate data
                     df_clean = self.validator.clean_dataframe(chunk)
                     df_typed = self.validator.validate_data_types(
                         df_clean, type_mapping
                     )
 
+                    # Create table on first chunk
                     if create_table and not table_created:
                         self.writer.create_table_from_dataframe(df_typed, type_mapping)
                         table_created = True
 
+                    # Insert data
                     rows_inserted = self.writer.bulk_insert(df_typed)
                     total_inserted += rows_inserted
 
@@ -487,13 +451,11 @@ class ExcelToSSMSProcessor:
                 "table_info": table_info,
             }
 
-            self.logger.info(
-                f"🎉 SUCCESS: {total_inserted:,} rows in {processing_time:.2f}s"
-            )
+            print(f"🎉 SUCCESS: {total_inserted:,} rows in {processing_time:.2f}s")
             return results
 
         except Exception as e:
-            self.logger.error(f"❌ Processing failed: {e}")
+            print(f"❌ Processing failed: {e}")
             return {"success": False, "error": str(e)}
 
 
@@ -520,6 +482,7 @@ Examples:
     table_name = sys.argv[2]
     sheet_name = sys.argv[3] if len(sys.argv) > 3 else None
 
+    # Load environment variables
     try:
         from dotenv import load_dotenv
 
