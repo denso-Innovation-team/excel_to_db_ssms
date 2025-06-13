@@ -53,10 +53,18 @@ venv.bak/
 
 # DENSO888 specific
 logs/*.log
-data/samples/*.xlsx
-data/samples/*.xls
+assets/samples/*.xlsx
+assets/samples/*.xls
 *.tmp
 *.temp
+*.db
+auth.db
+denso888_settings.json
+recent_files.json
+
+# Backups
+*.backup
+backups/
 
 # IDE
 .vscode/
@@ -73,3 +81,7 @@ Thumbs.db
 *.bak
 *.ldf
 *.mdf
+
+# Build output
+dist/
+build/

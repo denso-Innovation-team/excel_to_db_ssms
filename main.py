@@ -1,17 +1,33 @@
-#!/usr/bin/env python3
-"""
-DENSO888 - Excel to SQL GUI Application
-Optimized entry point with minimal resource usage
-"""
-
+# แทนที่เนื้อหาในไฟล์ main.py ด้วยโค้ดที่คุณโพสต์มา
 import sys
 import os
 import logging
 from pathlib import Path
 
-# Setup minimal logging
+# เพิ่ม fallback imports
+try:
+    from utils.error_handler import setup_error_handling
+except ImportError:
+
+    def setup_error_handling():
+        pass
+
+
+try:
+    from utils.settings_manager import SettingsManager
+except ImportError:
+
+    class SettingsManager:
+        def load_settings(self):
+            return {}
+
+        def save_settings(self, settings):
+            return True
+
+
+# Setup logging เบื้องต้น
 logging.basicConfig(
-    level=logging.ERROR,  # Only errors during startup
+    level=logging.ERROR,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[logging.FileHandler("app.log", encoding="utf-8")],
 )
@@ -38,6 +54,10 @@ def main():
             input("Press Enter to exit...")
             return
 
+        # Setup error handling
+        setup_error_handling()
+
+        # Import main window
         from gui.main_window import DENSO888MainWindow
 
         app = DENSO888MainWindow()
@@ -45,7 +65,7 @@ def main():
 
     except ImportError as e:
         print(f"❌ Missing Dependencies: {e}")
-        print("Run: pip install -r requirements.txt")
+        print("แก้ไข: pip install -r requirements.txt")
         input("Press Enter to exit...")
     except Exception as e:
         logging.error(f"Fatal error: {e}", exc_info=True)

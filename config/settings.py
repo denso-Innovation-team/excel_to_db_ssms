@@ -1,7 +1,3 @@
-"""
-Streamlined configuration system
-"""
-
 import os
 from dataclasses import dataclass, field
 from typing import Dict
@@ -9,7 +5,7 @@ from typing import Dict
 
 @dataclass
 class DatabaseConfig:
-    """Database configuration"""
+    """Database configuration with pool settings"""
 
     server: str = "localhost"
     database: str = "excel_to_db"
@@ -18,6 +14,12 @@ class DatabaseConfig:
     driver: str = "ODBC Driver 17 for SQL Server"
     use_windows_auth: bool = True
     sqlite_file: str = "denso888_data.db"
+
+    # Pool Settings
+    pool_size: int = 5
+    max_overflow: int = 10
+    pool_timeout: int = 30
+    pool_recycle: int = 3600
 
     @classmethod
     def from_env(cls):
@@ -28,6 +30,10 @@ class DatabaseConfig:
             password=os.getenv("DB_PASSWORD", ""),
             use_windows_auth=os.getenv("DB_USE_WINDOWS_AUTH", "1") == "1",
             sqlite_file=os.getenv("SQLITE_FILE", "denso888_data.db"),
+            pool_size=int(os.getenv("POOL_SIZE", "5")),
+            max_overflow=int(os.getenv("MAX_OVERFLOW", "10")),
+            pool_timeout=int(os.getenv("POOL_TIMEOUT", "30")),
+            pool_recycle=int(os.getenv("POOL_RECYCLE", "3600")),
         )
 
     def get_connection_url(self) -> str:
@@ -69,16 +75,27 @@ class UIConfig:
 
 
 @dataclass
+class AuthConfig:
+    """Authentication configuration"""
+
+    enable_auth: bool = True
+    session_timeout: int = 3600  # 1 hour
+    max_login_attempts: int = 3
+    lockout_duration: int = 900  # 15 minutes
+
+
+@dataclass
 class AppConfig:
     """Main application configuration"""
 
     app_name: str = "DENSO888 - Excel to SQL"
-    version: str = "1.0.0"
+    version: str = "2.0.0"
     author: str = "เฮียตอมจัดหั้ย!!!"
 
     ui: UIConfig = field(default_factory=UIConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig.from_env)
     processing: ProcessingConfig = field(default_factory=ProcessingConfig)
+    auth: AuthConfig = field(default_factory=AuthConfig)
 
 
 def get_config() -> AppConfig:

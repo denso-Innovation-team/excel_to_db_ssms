@@ -35,3 +35,59 @@ This probably means that Tcl wasn't installed properly.
 2025-06-13 13:19:50,240 - ERROR - SQL Server connection failed: 'DatabaseConfig' object has no attribute 'pool_size'
 2025-06-13 13:19:56,330 - ERROR - SQL Server connection failed: 'DatabaseConfig' object has no attribute 'pool_size'
 2025-06-13 13:27:50,656 - ERROR - SQL Server connection failed: 'DatabaseConfig' object has no attribute 'pool_size'
+2025-06-13 14:07:03,361 - ERROR - Fatal error: name 'SettingsManager' is not defined
+Traceback (most recent call last):
+  File "D:\GitHub\Project\excel_to_db_ssms\main.py", line 43, in main
+    app = DENSO888MainWindow()
+  File "D:\GitHub\Project\excel_to_db_ssms\gui\main_window.py", line 804, in __init__
+    self.settings_manager = SettingsManager()
+                            ^^^^^^^^^^^^^^^
+NameError: name 'SettingsManager' is not defined
+2025-06-13 14:09:45,444 - ERROR - Fatal error: name 'SettingsManager' is not defined
+Traceback (most recent call last):
+  File "D:\GitHub\Project\excel_to_db_ssms\main.py", line 43, in main
+    app = DENSO888MainWindow()
+  File "D:\GitHub\Project\excel_to_db_ssms\gui\main_window.py", line 804, in __init__
+    self.settings_manager = SettingsManager()
+                            ^^^^^^^^^^^^^^^
+NameError: name 'SettingsManager' is not defined
+2025-06-13 14:10:33,547 - ERROR - Fatal error: name 'SettingsManager' is not defined
+Traceback (most recent call last):
+  File "D:\GitHub\Project\excel_to_db_ssms\main.py", line 43, in main
+    app = DENSO888MainWindow()
+  File "D:\GitHub\Project\excel_to_db_ssms\gui\main_window.py", line 804, in __init__
+    self.settings_manager = SettingsManager()
+                            ^^^^^^^^^^^^^^^
+NameError: name 'SettingsManager' is not defined
+2025-06-13 14:10:49,291 - ERROR - Fatal error: name 'SettingsManager' is not defined
+Traceback (most recent call last):
+  File "D:\GitHub\Project\excel_to_db_ssms\main.py", line 43, in main
+    app = DENSO888MainWindow()
+  File "D:\GitHub\Project\excel_to_db_ssms\gui\main_window.py", line 804, in __init__
+    self.settings_manager = SettingsManager()
+                            ^^^^^^^^^^^^^^^
+NameError: name 'SettingsManager' is not defined
+2025-06-13 14:11:27,397 - ERROR - Fatal error: name 'SettingsManager' is not defined
+Traceback (most recent call last):
+  File "D:\GitHub\Project\excel_to_db_ssms\main.py", line 43, in main
+    app = DENSO888MainWindow()
+  File "D:\GitHub\Project\excel_to_db_ssms\gui\main_window.py", line 804, in __init__
+    self.settings_manager = SettingsManager()
+                            ^^^^^^^^^^^^^^^
+NameError: name 'SettingsManager' is not defined
+2025-06-13 14:15:03,709 - ERROR - Fatal error: name 'SettingsManager' is not defined
+Traceback (most recent call last):
+  File "D:\GitHub\Project\excel_to_db_ssms\main.py", line 43, in main
+    app = DENSO888MainWindow()
+  File "D:\GitHub\Project\excel_to_db_ssms\gui\main_window.py", line 804, in __init__
+    self.settings_manager = SettingsManager()
+                            ^^^^^^^^^^^^^^^
+NameError: name 'SettingsManager' is not defined
+2025-06-13 14:18:18,685 - ERROR - Fatal error: name 'SettingsManager' is not defined
+Traceback (most recent call last):
+  File "D:\GitHub\Project\excel_to_db_ssms\main.py", line 63, in main
+    app = DENSO888MainWindow()
+  File "D:\GitHub\Project\excel_to_db_ssms\gui\main_window.py", line 804, in __init__
+    self.settings_manager = SettingsManager()
+                            ^^^^^^^^^^^^^^^
+NameError: name 'SettingsManager' is not defined
