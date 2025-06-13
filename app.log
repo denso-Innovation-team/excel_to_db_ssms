@@ -29,3 +29,9 @@ ValueError: mutable default <class 'config.settings.UIConfig'> for field ui is n
 
 This probably means that Tcl wasn't installed properly.
 
+2025-06-13 13:18:48,646 - ERROR - SQL Server connection failed: 'DatabaseConfig' object has no attribute 'pool_size'
+2025-06-13 13:19:00,381 - ERROR - SQL Server connection failed: 'DatabaseConfig' object has no attribute 'pool_size'
+2025-06-13 13:19:34,707 - ERROR - SQL Server connection failed: 'DatabaseConfig' object has no attribute 'pool_size'
+2025-06-13 13:19:50,240 - ERROR - SQL Server connection failed: 'DatabaseConfig' object has no attribute 'pool_size'
+2025-06-13 13:19:56,330 - ERROR - SQL Server connection failed: 'DatabaseConfig' object has no attribute 'pool_size'
+2025-06-13 13:27:50,656 - ERROR - SQL Server connection failed: 'DatabaseConfig' object has no attribute 'pool_size'

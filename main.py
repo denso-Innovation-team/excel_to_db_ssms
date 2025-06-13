@@ -1,36 +1,56 @@
+#!/usr/bin/env python3
+"""
+DENSO888 - Excel to SQL GUI Application
+Optimized entry point with minimal resource usage
+"""
+
 import sys
+import os
 import logging
 from pathlib import Path
 
-# Configure logging
+# Setup minimal logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("app.log", encoding="utf-8"),
-    ],
+    level=logging.ERROR,  # Only errors during startup
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("app.log", encoding="utf-8")],
 )
-logger = logging.getLogger(__name__)
+
+
+def check_environment():
+    """Quick environment validation"""
+    try:
+        import tkinter
+
+        root = tkinter.Tk()
+        root.withdraw()
+        root.destroy()
+        return True
+    except Exception as e:
+        print(f"❌ GUI Environment Error: {e}")
+        return False
 
 
 def main():
-    """Main application entry point"""
+    """Streamlined application entry"""
     try:
-        # Check environment first
-        import check_env
+        if not check_environment():
+            input("Press Enter to exit...")
+            return
 
-        check_env.main()
-
-        # Import and start application
         from gui.main_window import DENSO888MainWindow
 
         app = DENSO888MainWindow()
         app.run()
 
+    except ImportError as e:
+        print(f"❌ Missing Dependencies: {e}")
+        print("Run: pip install -r requirements.txt")
+        input("Press Enter to exit...")
     except Exception as e:
-        logger.error(f"Fatal error occurred: {e}", exc_info=True)
-        sys.exit(1)
+        logging.error(f"Fatal error: {e}", exc_info=True)
+        print(f"❌ Application Error: {e}")
+        input("Press Enter to exit...")
 
 
 if __name__ == "__main__":
