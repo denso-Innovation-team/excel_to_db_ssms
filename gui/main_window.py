@@ -2,8 +2,14 @@
 gui/main_window.py - Fixed Main Window with Enhanced Error Handling
 """
 
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+# Fixed tkinter import
+try:
+    from tkinter_wrapper import tk, ttk, messagebox, filedialog, TKINTER_AVAILABLE
+    if not TKINTER_AVAILABLE:
+        raise ImportError("Tkinter not available")
+except ImportError:
+    print("❌ GUI not available - using console mode")
+    raise
 import threading
 import logging
 import sqlite3
