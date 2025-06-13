@@ -21,7 +21,28 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual environments
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Environments
 .env
 .venv
 env/
@@ -30,15 +51,12 @@ ENV/
 env.bak/
 venv.bak/
 
-# Excel to SSMS specific
+# DENSO888 specific
 logs/*.log
 data/samples/*.xlsx
 data/samples/*.xls
-data/test/*.xlsx
-data/performance/*.xlsx
 *.tmp
 *.temp
-backup/*.bak
 
 # IDE
 .vscode/
@@ -55,7 +73,3 @@ Thumbs.db
 *.bak
 *.ldf
 *.mdf
-
-# Configuration (keep template)
-.env
-!.env.template
