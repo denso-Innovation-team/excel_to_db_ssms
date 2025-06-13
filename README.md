@@ -47,10 +47,10 @@ python main.py
 
 ### 🔑 **Default Login**
 
-```
+'''
 Username: admin
 Password: admin123
-```
+'''
 
 ### 📋 **Basic Usage**
 
@@ -64,42 +64,42 @@ Password: admin123
 
 ### **SQL Server Connection**
 
-```
+'''
 Server: localhost หรือ ชื่อ Server
 Database: excel_to_db
 Authentication:
-  ✅ Windows Authentication (แนะนำ)
-  ✅ SQL Server Authentication (username/password)
-```
+✅ Windows Authentication (แนะนำ)
+✅ SQL Server Authentication (username/password)
+'''
 
 ### **SQLite (Default)**
 
-```
+'''
 File: denso888_data.db
 ✅ ไม่ต้องติดตั้งเพิ่มเติม
 ✅ ใช้งานได้ทันที
-```
+'''
 
 ## 📁 Project Structure
 
-```
+'''
 denso888-excel-to-sql/
-├── main.py                    # Entry point
-├── config/                    # Configuration
-│   └── settings.py           # App settings
-├── core/                      # Business logic
-│   ├── excel_handler.py      # Excel processing
-│   ├── database_manager.py   # Database operations
-│   ├── mock_generator.py     # Mock data generation
-│   └── data_processor.py     # Main processing pipeline
-├── gui/                       # User interface
-│   └── main_window.py        # Main GUI application
-├── utils/                     # Utilities
-│   ├── logger.py            # Logging system
-│   ├── settings_manager.py  # Settings persistence
-│   └── file_utils.py        # File operations
-└── requirements.txt           # Dependencies
-```
+├── main.py # Entry point
+├── config/ # Configuration
+│ └── settings.py # App settings
+├── core/ # Business logic
+│ ├── excel_handler.py # Excel processing
+│ ├── database_manager.py # Database operations
+│ ├── mock_generator.py # Mock data generation
+│ └── data_processor.py # Main processing pipeline
+├── gui/ # User interface
+│ └── main_window.py # Main GUI application
+├── utils/ # Utilities
+│ ├── logger.py # Logging system
+│ ├── settings_manager.py # Settings persistence
+│ └── file_utils.py # File operations
+└── requirements.txt # Dependencies
+'''
 
 ## 🔧 System Requirements
 
@@ -154,11 +154,11 @@ INSTALL_DENSO888.bat
 
 ### **Logs Location:**
 
-```
+'''
 logs/denso888.log - Application logs
 auth.db - Authentication database
 denso888_settings.json - User settings
-```
+'''
 
 ---
 
