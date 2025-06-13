@@ -1,6 +1,6 @@
-# DENSO888 Essential Dependencies
+# DENSO888 Essential Dependencies - Fixed
 
-# Core Data Processing
+# Core Data Processing  
 pandas>=2.0.0
 sqlalchemy>=2.0.0
 pyodbc>=4.0.39
@@ -8,7 +8,7 @@ pyodbc>=4.0.39
 # Excel Processing
 openpyxl>=3.1.0
 
-# Configuration (Optional)
+# Configuration
 python-dotenv>=1.0.0
 
 # Progress Display
@@ -16,6 +16,3 @@ tqdm>=4.65.0
 
 # Build Tool (Development Only)
 pyinstaller>=5.10.0
-
-# Development Tools (Optional)
-pytest>=7.0.0

@@ -1,4 +1,46 @@
+#!/usr/bin/env python3
 """
+เก็บระเบียบไฟล์โครงการ - ลบไฟล์ซ้ำและแก้ import conflicts
+"""
+
+from pathlib import Path
+
+
+def cleanup_denso888_project():
+    """ลบไฟล์ซ้ำซ้อนและแก้ปัญหา import"""
+
+    print("🧹 ลบไฟล์ที่ไม่จำเป็น...")
+
+    # 1. ลบไฟล์ซ้ำใน utils/
+    files_to_remove = [
+        "gui/utils/file_utils.py",  # ซ้ำกับ utils/file_utils.py
+        "gui/utils/settings_manager.py",  # ซ้ำกับ utils/settings_manager.py
+        "config/database.py",  # ไฟล์ว่าง
+        "auth_upgrade_demo.py",  # ไฟล์ demo ไม่จำเป็น
+        "cleanup_script.py",  # ไฟล์ cleanup เก่า
+        "build.py",  # ถ้าไม่ใช้ build ให้ลบ
+    ]
+
+    for file_path in files_to_remove:
+        if Path(file_path).exists():
+            Path(file_path).unlink()
+            print(f"  ✅ ลบ: {file_path}")
+
+    # 2. ลบโฟลเดอร์ว่าง
+    empty_dirs = ["gui/utils", "gui/components", "gui/styles"]
+
+    for dir_path in empty_dirs:
+        try:
+            if Path(dir_path).exists() and not any(Path(dir_path).iterdir()):
+                Path(dir_path).rmdir()
+                print(f"  ✅ ลบโฟลเดอร์ว่าง: {dir_path}")
+        except:
+            pass
+
+    print("\n🔧 แก้ไข config/settings.py...")
+
+    # 3. แก้ไข config/settings.py ให้ถูกต้อง (ไฟล์ปัจจุบันใน config/settings.py ผิด)
+    config_settings_content = '''"""
 DENSO888 Configuration Settings - Fixed Version
 """
 import os
@@ -106,3 +148,21 @@ def get_config() -> AppConfig:
     config.processing.chunk_size = int(os.getenv("CHUNK_SIZE", str(config.processing.chunk_size)))
     
     return config
+'''
+
+    with open("config/settings.py", "w", encoding="utf-8") as f:
+        f.write(config_settings_content)
+
+    print("  ✅ แก้ไข config/settings.py")
+
+    print("\n🎯 สรุปการแก้ไข:")
+    print("  ✅ ลบไฟล์ซ้ำซ้อน")
+    print("  ✅ แก้ config/settings.py")
+    print("  ✅ ลบโฟลเดอร์ว่าง")
+    print("  ✅ แก้ import conflicts")
+
+    print("\n✨ ระบบพร้อมใช้งาน! รัน: python main.py")
+
+
+if __name__ == "__main__":
+    cleanup_denso888_project()
