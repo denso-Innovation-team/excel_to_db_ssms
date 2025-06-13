@@ -4,10 +4,8 @@ DENSO888 Complete Project Cleanup & Fix
 ลบไฟล์ไม่จำเป็น และแก้ไขปัญหาทั้งหมด
 """
 
-import os
 import shutil
 from pathlib import Path
-import json
 
 
 def cleanup_unnecessary_files():
@@ -70,7 +68,8 @@ def create_missing_utils():
     print("📄 Creating essential utility files...")
 
     # utils/settings_manager.py
-    settings_manager_content = '''"""Settings Manager for DENSO888"""
+    settings_manager_content = '''
+"""Settings Manager for DENSO888"""
 import json
 import logging
 from pathlib import Path
@@ -127,7 +126,8 @@ class SettingsManager:
 '''
 
     # utils/file_utils.py
-    file_utils_content = '''"""File utilities for DENSO888"""
+    file_utils_content = '''
+"""File utilities for DENSO888"""
 from pathlib import Path
 from typing import List, Dict, Any
 import logging
@@ -199,7 +199,8 @@ def fix_config_settings():
 
     print("⚙️ Fixing configuration settings...")
 
-    fixed_settings_content = '''"""DENSO888 Configuration Settings"""
+    fixed_settings_content = '''
+"""DENSO888 Configuration Settings"""
 import os
 from dataclasses import dataclass, field
 from typing import Dict, Any

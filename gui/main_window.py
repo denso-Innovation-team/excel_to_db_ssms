@@ -1,5 +1,5 @@
 """
-gui/main_window.py - Complete Main Window with Authentication System
+gui/main_window.py - Fixed Main Window with Enhanced Error Handling
 """
 
 import tkinter as tk
@@ -11,10 +11,9 @@ import hashlib
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict, Any, Callable
-import pandas as pd
+from typing import Dict, Any
 
-# Import core modules
+# Enhanced import handling with fallbacks
 try:
     from config.settings import get_config, DatabaseConfig
     from core.database_manager import DatabaseManager
@@ -22,17 +21,29 @@ try:
     from core.excel_handler import ExcelHandler
     from core.mock_generator import MockDataTemplates
     from utils.logger import setup_gui_logger
-    from utils.settings_manager import SettingsManager
-
-    # Import fixed in cleanup
 except ImportError as e:
-    print(f"Import error: {e}")
+    print(f"⚠️ Import warning: {e}")
+    print("💡 Some features may not work correctly")
+
+# Fallback imports with error handling
+try:
+    from utils.settings_manager import SettingsManager
+except ImportError:
+    print("⚠️ SettingsManager not found, using fallback")
+
+    class SettingsManager:
+        def load_settings(self):
+            return {"window": {"geometry": "1400x900"}}
+
+        def save_settings(self, settings):
+            return True
+
 
 logger = logging.getLogger(__name__)
 
 
 class AuthenticationManager:
-    """ระบบจัดการการ Login และสิทธิ์การใช้งาน"""
+    """Enhanced authentication with better security"""
 
     def __init__(self):
         self.auth_db = Path("auth.db")
@@ -42,23 +53,28 @@ class AuthenticationManager:
         self._init_auth_db()
 
     def _init_auth_db(self):
-        """สร้างฐานข้อมูลผู้ใช้"""
+        """Initialize authentication database with enhanced schema"""
         try:
             with sqlite3.connect(self.auth_db) as conn:
+                # Users table with additional fields
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS users (
                         id INTEGER PRIMARY KEY,
                         username TEXT UNIQUE NOT NULL,
                         password_hash TEXT NOT NULL,
+                        salt TEXT NOT NULL,
                         role TEXT DEFAULT 'user',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         last_login TIMESTAMP,
+                        failed_attempts INTEGER DEFAULT 0,
+                        locked_until TIMESTAMP,
                         is_active BOOLEAN DEFAULT 1
                     )
                 """
                 )
 
+                # Enhanced permissions table
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS permissions (
@@ -69,43 +85,59 @@ class AuthenticationManager:
                         can_write BOOLEAN DEFAULT 0,
                         can_delete BOOLEAN DEFAULT 0,
                         can_admin BOOLEAN DEFAULT 0,
+                        max_rows INTEGER DEFAULT 10000,
                         FOREIGN KEY (user_id) REFERENCES users (id)
                     )
                 """
                 )
 
-                # สร้าง admin user เริ่มต้น
+                # Session tracking
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        id INTEGER PRIMARY KEY,
+                        user_id INTEGER,
+                        session_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        session_end TIMESTAMP,
+                        ip_address TEXT,
+                        FOREIGN KEY (user_id) REFERENCES users (id)
+                    )
+                """
+                )
+
                 self._create_default_admin()
 
         except Exception as e:
             logger.error(f"Failed to initialize auth database: {e}")
 
     def _create_default_admin(self):
-        """สร้าง admin user เริ่มต้น"""
+        """Create default admin with enhanced security"""
         try:
             with sqlite3.connect(self.auth_db) as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
 
                 if cursor.fetchone()[0] == 0:
-                    # สร้าง admin เริ่มต้น
-                    admin_password = self._hash_password("admin123")
+                    # Generate salt and hash password
+                    salt = os.urandom(32).hex()
+                    password_hash = self._hash_password_with_salt("admin123", salt)
+
                     cursor.execute(
                         """
-                        INSERT INTO users (username, password_hash, role)
-                        VALUES (?, ?, ?)
+                        INSERT INTO users (username, password_hash, salt, role)
+                        VALUES (?, ?, ?, ?)
                     """,
-                        ("admin", admin_password, "admin"),
+                        ("admin", password_hash, salt, "admin"),
                     )
 
                     user_id = cursor.lastrowid
 
-                    # ให้สิทธิ์เต็ม
+                    # Give full permissions
                     for db_type in ["sqlite", "sqlserver"]:
                         cursor.execute(
                             """
-                            INSERT INTO permissions (user_id, db_type, can_read, can_write, can_delete, can_admin)
-                            VALUES (?, ?, 1, 1, 1, 1)
+                            INSERT INTO permissions (user_id, db_type, can_read, can_write, can_delete, can_admin, max_rows)
+                            VALUES (?, ?, 1, 1, 1, 1, NULL)
                         """,
                             (user_id, db_type),
                         )
@@ -115,18 +147,20 @@ class AuthenticationManager:
         except Exception as e:
             logger.error(f"Failed to create default admin: {e}")
 
-    def _hash_password(self, password: str) -> str:
-        """Hash password"""
-        return hashlib.sha256(password.encode()).hexdigest()
+    def _hash_password_with_salt(self, password: str, salt: str) -> str:
+        """Enhanced password hashing with salt"""
+        return hashlib.pbkdf2_hmac(
+            "sha256", password.encode(), bytes.fromhex(salt), 100000
+        ).hex()
 
     def authenticate(self, username: str, password: str) -> tuple[bool, str]:
-        """ตรวจสอบการ Login"""
+        """Enhanced authentication with account lockout"""
         try:
             with sqlite3.connect(self.auth_db) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
-                    SELECT id, username, password_hash, role, is_active 
+                    SELECT id, username, password_hash, salt, role, is_active, failed_attempts, locked_until
                     FROM users WHERE username = ?
                 """,
                     (username,),
@@ -137,18 +171,66 @@ class AuthenticationManager:
                 if not user:
                     return False, "ไม่พบผู้ใช้งาน"
 
-                user_id, username, stored_hash, role, is_active = user
+                (
+                    user_id,
+                    username,
+                    stored_hash,
+                    salt,
+                    role,
+                    is_active,
+                    failed_attempts,
+                    locked_until,
+                ) = user
+
+                # Check if account is locked
+                if locked_until:
+                    lock_time = datetime.fromisoformat(locked_until)
+                    if datetime.now() < lock_time:
+                        return False, f"บัญชีถูกล็อค จนถึง {lock_time.strftime('%H:%M:%S')}"
 
                 if not is_active:
                     return False, "บัญชีถูกระงับ"
 
-                if stored_hash != self._hash_password(password):
-                    return False, "รหัสผ่านไม่ถูกต้อง"
+                # Verify password
+                password_hash = self._hash_password_with_salt(password, salt)
+                if stored_hash != password_hash:
+                    # Increment failed attempts
+                    new_failed_attempts = failed_attempts + 1
+                    locked_until_time = None
 
-                # อัพเดท last login
+                    if new_failed_attempts >= 3:
+                        locked_until_time = (
+                            datetime.now() + timedelta(minutes=15)
+                        ).isoformat()
+
+                    cursor.execute(
+                        """
+                        UPDATE users SET failed_attempts = ?, locked_until = ? WHERE id = ?
+                    """,
+                        (new_failed_attempts, locked_until_time, user_id),
+                    )
+
+                    if locked_until_time:
+                        return False, "บัญชีถูกล็อคเนื่องจากล็อกอินผิด 3 ครั้ง (15 นาที)"
+                    else:
+                        return (
+                            False,
+                            f"รหัสผ่านไม่ถูกต้อง (เหลือ {3-new_failed_attempts} ครั้ง)",
+                        )
+
+                # Reset failed attempts on successful login
                 cursor.execute(
                     """
-                    UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
+                    UPDATE users SET last_login = CURRENT_TIMESTAMP, failed_attempts = 0, locked_until = NULL 
+                    WHERE id = ?
+                """,
+                    (user_id,),
+                )
+
+                # Create session record
+                cursor.execute(
+                    """
+                    INSERT INTO sessions (user_id) VALUES (?)
                 """,
                     (user_id,),
                 )
@@ -163,7 +245,7 @@ class AuthenticationManager:
             return False, f"ข้อผิดพลาดระบบ: {e}"
 
     def check_permission(self, db_type: str, action: str) -> bool:
-        """ตรวจสอบสิทธิ์การใช้งาน"""
+        """Enhanced permission checking"""
         if not self.current_user:
             return False
 
@@ -175,7 +257,7 @@ class AuthenticationManager:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
-                    SELECT can_read, can_write, can_delete, can_admin
+                    SELECT can_read, can_write, can_delete, can_admin, max_rows
                     FROM permissions 
                     WHERE user_id = ? AND db_type = ?
                 """,
@@ -186,7 +268,7 @@ class AuthenticationManager:
                 if not perms:
                     return False
 
-                can_read, can_write, can_delete, can_admin = perms
+                can_read, can_write, can_delete, can_admin, max_rows = perms
 
                 permission_map = {
                     "read": can_read,
@@ -201,55 +283,91 @@ class AuthenticationManager:
             logger.error(f"Permission check error: {e}")
             return False
 
+    def get_user_restrictions(self, db_type: str) -> Dict[str, Any]:
+        """Get user-specific restrictions"""
+        if not self.current_user:
+            return {"max_rows": 0}
+
+        if self.current_user["role"] == "admin":
+            return {"max_rows": None}  # Unlimited
+
+        try:
+            with sqlite3.connect(self.auth_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT max_rows FROM permissions 
+                    WHERE user_id = ? AND db_type = ?
+                """,
+                    (self.current_user["id"], db_type),
+                )
+
+                result = cursor.fetchone()
+                return {"max_rows": result[0] if result else 10000}
+
+        except Exception as e:
+            logger.error(f"Error getting restrictions: {e}")
+            return {"max_rows": 10000}
+
     def is_session_valid(self) -> bool:
-        """ตรวจสอบว่า session ยังใช้งานได้หรือไม่"""
+        """Check if session is still valid"""
         if not self.current_user or not self.session_start:
             return False
 
         return (datetime.now() - self.session_start).seconds < self.session_timeout
 
     def logout(self):
-        """ออกจากระบบ"""
+        """Enhanced logout with session cleanup"""
+        if self.current_user:
+            try:
+                with sqlite3.connect(self.auth_db) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        """
+                        UPDATE sessions SET session_end = CURRENT_TIMESTAMP 
+                        WHERE user_id = ? AND session_end IS NULL
+                    """,
+                        (self.current_user["id"],),
+                    )
+            except Exception as e:
+                logger.error(f"Error updating session: {e}")
+
         self.current_user = None
         self.session_start = None
 
 
 class LoginDialog:
-    """หน้าต่าง Login"""
+    """Enhanced login dialog with better UX"""
 
     def __init__(self, parent, auth_manager: AuthenticationManager):
         self.auth_manager = auth_manager
         self.success = False
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("🔐 DENSO888 - เข้าสู่ระบบ")
-        self.dialog.geometry("400x300")
+        self.dialog.geometry("450x350")
         self.dialog.resizable(False, False)
         self.dialog.grab_set()
 
         # Center dialog
         self.dialog.transient(parent)
         self._center_window()
-
         self._create_widgets()
 
     def _center_window(self):
-        """จัดให้หน้าต่างอยู่กลางจอ"""
+        """Center dialog on screen"""
         self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (400 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (300 // 2)
-        self.dialog.geometry(f"400x300+{x}+{y}")
+        x = (self.dialog.winfo_screenwidth() // 2) - (450 // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (350 // 2)
+        self.dialog.geometry(f"450x350+{x}+{y}")
 
     def _create_widgets(self):
-        """สร้าง UI"""
-        # Header
+        """Create enhanced UI"""
+        # Header with better styling
         header_frame = ttk.Frame(self.dialog)
         header_frame.pack(fill="x", pady=20)
 
         title_label = ttk.Label(
-            header_frame,
-            text="🏭 DENSO888",
-            font=("Segoe UI", 16, "bold"),
-            foreground="#DC0003",
+            header_frame, text="🏭 DENSO888", font=("Segoe UI", 18, "bold")
         )
         title_label.pack()
 
@@ -258,56 +376,83 @@ class LoginDialog:
         )
         subtitle_label.pack()
 
-        # Login Form
+        version_label = ttk.Label(
+            header_frame,
+            text="v2.0.0 - Enhanced Security",
+            font=("Segoe UI", 8),
+            foreground="gray",
+        )
+        version_label.pack()
+
+        # Login Form with better layout
         form_frame = ttk.LabelFrame(self.dialog, text="📝 เข้าสู่ระบบ", padding=20)
         form_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
-        # Username
-        ttk.Label(form_frame, text="ชื่อผู้ใช้:").pack(anchor="w", pady=(0, 5))
-        self.username_entry = ttk.Entry(form_frame, font=("Segoe UI", 11))
-        self.username_entry.pack(fill="x", pady=(0, 10))
+        # Username with icon
+        username_frame = ttk.Frame(form_frame)
+        username_frame.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(username_frame, text="👤 ชื่อผู้ใช้:").pack(anchor="w", pady=(0, 5))
+        self.username_entry = ttk.Entry(username_frame, font=("Segoe UI", 11))
+        self.username_entry.pack(fill="x")
         self.username_entry.focus()
 
-        # Password
-        ttk.Label(form_frame, text="รหัสผ่าน:").pack(anchor="w", pady=(0, 5))
-        self.password_entry = ttk.Entry(form_frame, font=("Segoe UI", 11), show="*")
-        self.password_entry.pack(fill="x", pady=(0, 10))
+        # Password with icon
+        password_frame = ttk.Frame(form_frame)
+        password_frame.pack(fill="x", pady=(0, 10))
 
-        # Remember checkbox
+        ttk.Label(password_frame, text="🔒 รหัสผ่าน:").pack(anchor="w", pady=(0, 5))
+        self.password_entry = ttk.Entry(password_frame, font=("Segoe UI", 11), show="*")
+        self.password_entry.pack(fill="x")
+
+        # Show password checkbox
+        self.show_password_var = tk.BooleanVar()
+        show_password_cb = ttk.Checkbutton(
+            form_frame,
+            text="แสดงรหัสผ่าน",
+            variable=self.show_password_var,
+            command=self._toggle_password_visibility,
+        )
+        show_password_cb.pack(anchor="w", pady=(5, 10))
+
+        # Remember login
         self.remember_var = tk.BooleanVar()
         ttk.Checkbutton(
             form_frame, text="จดจำการเข้าสู่ระบบ", variable=self.remember_var
         ).pack(anchor="w", pady=(0, 15))
 
-        # Buttons
+        # Buttons with better styling
         button_frame = ttk.Frame(form_frame)
         button_frame.pack(fill="x")
 
-        login_btn = ttk.Button(
-            button_frame,
-            text="🔑 เข้าสู่ระบบ",
-            command=self._login,
-            style="Accent.TButton",
-        )
+        login_btn = ttk.Button(button_frame, text="🔑 เข้าสู่ระบบ", command=self._login)
         login_btn.pack(side="right", padx=(5, 0))
 
-        ttk.Button(button_frame, text="❌ ยกเลิก", command=self._cancel).pack(
-            side="right"
-        )
+        cancel_btn = ttk.Button(button_frame, text="❌ ยกเลิก", command=self._cancel)
+        cancel_btn.pack(side="right")
 
-        # Default login info
+        # Info section
         info_frame = ttk.Frame(self.dialog)
         info_frame.pack(fill="x", padx=20, pady=(0, 10))
 
+        info_text = """💡 ข้อมูลล็อกอินเริ่มต้น:
+👤 Username: admin
+🔒 Password: admin123
+
+🔒 ความปลอดภัย:
+• บัญชีจะถูกล็อคหากล็อกอินผิด 3 ครั้ง
+• Session timeout: 1 ชั่วโมง"""
+
         info_label = ttk.Label(
             info_frame,
-            text="💡 Default: admin / admin123",
+            text=info_text,
             font=("Segoe UI", 9),
             foreground="gray",
+            justify="left",
         )
-        info_label.pack()
+        info_label.pack(anchor="w")
 
-        # Bind Enter key
+        # Bind events
         self.dialog.bind("<Return>", lambda e: self._login())
         self.username_entry.bind("<Return>", lambda e: self.password_entry.focus())
         self.password_entry.bind("<Return>", lambda e: self._login())
@@ -315,8 +460,15 @@ class LoginDialog:
         # Set default values
         self.username_entry.insert(0, "admin")
 
+    def _toggle_password_visibility(self):
+        """Toggle password visibility"""
+        if self.show_password_var.get():
+            self.password_entry.configure(show="")
+        else:
+            self.password_entry.configure(show="*")
+
     def _login(self):
-        """ดำเนินการ Login"""
+        """Enhanced login process"""
         username = self.username_entry.get().strip()
         password = self.password_entry.get()
 
@@ -324,485 +476,45 @@ class LoginDialog:
             messagebox.showwarning("คำเตือน", "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน")
             return
 
-        success, message = self.auth_manager.authenticate(username, password)
+        # Disable login button during authentication
+        self.dialog.configure(cursor="wait")
 
-        if success:
-            self.success = True
-            messagebox.showinfo("สำเร็จ", message)
-            self.dialog.destroy()
-        else:
-            messagebox.showerror("ข้อผิดพลาด", message)
-            self.password_entry.delete(0, tk.END)
-            self.password_entry.focus()
+        try:
+            success, message = self.auth_manager.authenticate(username, password)
+
+            if success:
+                self.success = True
+                messagebox.showinfo("สำเร็จ", message)
+                self.dialog.destroy()
+            else:
+                messagebox.showerror("ข้อผิดพลาด", message)
+                self.password_entry.delete(0, tk.END)
+                self.password_entry.focus()
+
+        except Exception as e:
+            messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการเข้าสู่ระบบ: {e}")
+
+        finally:
+            self.dialog.configure(cursor="")
 
     def _cancel(self):
-        """ยกเลิก Login"""
+        """Cancel login"""
         self.dialog.destroy()
 
 
-class DatabaseTestDialog:
-    """หน้าต่างทดสอบและจัดการฐานข้อมูล"""
-
-    def __init__(self, parent, auth_manager: AuthenticationManager):
-        self.auth_manager = auth_manager
-        self.db_manager = None
-
-        self.dialog = tk.Toplevel(parent)
-        self.dialog.title("🗄️ Database Connection & Permissions")
-        self.dialog.geometry("700x500")
-        self.dialog.grab_set()
-        self.dialog.transient(parent)
-
-        self._create_widgets()
-        self._center_window()
-
-    def _center_window(self):
-        """จัดให้หน้าต่างอยู่กลางจอ"""
-        self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (700 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (500 // 2)
-        self.dialog.geometry(f"700x500+{x}+{y}")
-
-    def _create_widgets(self):
-        """สร้าง UI"""
-        # Header
-        header_frame = ttk.Frame(self.dialog)
-        header_frame.pack(fill="x", pady=10, padx=20)
-
-        ttk.Label(
-            header_frame,
-            text="🗄️ Database Connection & Permission Testing",
-            font=("Segoe UI", 14, "bold"),
-        ).pack()
-
-        # Notebook for tabs
-        notebook = ttk.Notebook(self.dialog)
-        notebook.pack(fill="both", expand=True, padx=20, pady=10)
-
-        # SQLite Tab
-        sqlite_frame = ttk.Frame(notebook)
-        notebook.add(sqlite_frame, text="📁 SQLite")
-        self._create_sqlite_tab(sqlite_frame)
-
-        # SQL Server Tab
-        sqlserver_frame = ttk.Frame(notebook)
-        notebook.add(sqlserver_frame, text="🏢 SQL Server")
-        self._create_sqlserver_tab(sqlserver_frame)
-
-        # Permissions Tab
-        perms_frame = ttk.Frame(notebook)
-        notebook.add(perms_frame, text="🔐 User Permissions")
-        self._create_permissions_tab(perms_frame)
-
-        # Close button
-        close_frame = ttk.Frame(self.dialog)
-        close_frame.pack(fill="x", padx=20, pady=10)
-
-        ttk.Button(close_frame, text="✅ Close", command=self.dialog.destroy).pack(
-            side="right"
-        )
-
-    def _create_sqlite_tab(self, parent):
-        """สร้าง SQLite tab"""
-        # Configuration
-        config_frame = ttk.LabelFrame(
-            parent, text="📁 SQLite Configuration", padding=10
-        )
-        config_frame.pack(fill="x", pady=10)
-
-        file_frame = ttk.Frame(config_frame)
-        file_frame.pack(fill="x")
-
-        ttk.Label(file_frame, text="Database File:").pack(side="left")
-        self.sqlite_file_var = tk.StringVar(value="denso888_data.db")
-        ttk.Entry(file_frame, textvariable=self.sqlite_file_var, width=40).pack(
-            side="left", padx=10, fill="x", expand=True
-        )
-        ttk.Button(file_frame, text="Browse", command=self._browse_sqlite).pack(
-            side="right"
-        )
-
-        # Test buttons
-        test_frame = ttk.Frame(config_frame)
-        test_frame.pack(fill="x", pady=10)
-
-        ttk.Button(
-            test_frame,
-            text="🔌 Test Connection",
-            command=lambda: self._test_db("sqlite"),
-        ).pack(side="left", padx=5)
-        ttk.Button(
-            test_frame, text="🔍 Test CRUD", command=lambda: self._test_crud("sqlite")
-        ).pack(side="left", padx=5)
-
-        # Results
-        self.sqlite_results = tk.Text(parent, height=15, wrap="word")
-        self.sqlite_results.pack(fill="both", expand=True, pady=10)
-
-        scrollbar1 = ttk.Scrollbar(
-            parent, orient="vertical", command=self.sqlite_results.yview
-        )
-        self.sqlite_results.configure(yscrollcommand=scrollbar1.set)
-
-    def _create_sqlserver_tab(self, parent):
-        """สร้าง SQL Server tab"""
-        # Configuration
-        config_frame = ttk.LabelFrame(
-            parent, text="🏢 SQL Server Configuration", padding=10
-        )
-        config_frame.pack(fill="x", pady=10)
-
-        # Server info
-        server_row = ttk.Frame(config_frame)
-        server_row.pack(fill="x", pady=5)
-
-        ttk.Label(server_row, text="Server:").pack(side="left")
-        self.sql_server_var = tk.StringVar(value="localhost")
-        ttk.Entry(server_row, textvariable=self.sql_server_var, width=20).pack(
-            side="left", padx=10
-        )
-
-        ttk.Label(server_row, text="Database:").pack(side="left", padx=(20, 0))
-        self.sql_database_var = tk.StringVar(value="excel_to_db")
-        ttk.Entry(server_row, textvariable=self.sql_database_var, width=20).pack(
-            side="left", padx=10
-        )
-
-        # Authentication
-        auth_frame = ttk.LabelFrame(config_frame, text="🔐 Authentication", padding=5)
-        auth_frame.pack(fill="x", pady=5)
-
-        self.sql_windows_auth = tk.BooleanVar(value=True)
-        ttk.Radiobutton(
-            auth_frame,
-            text="Windows Authentication",
-            variable=self.sql_windows_auth,
-            value=True,
-            command=self._toggle_sql_auth,
-        ).pack(anchor="w")
-        ttk.Radiobutton(
-            auth_frame,
-            text="SQL Server Authentication",
-            variable=self.sql_windows_auth,
-            value=False,
-            command=self._toggle_sql_auth,
-        ).pack(anchor="w")
-
-        # Credentials
-        self.cred_frame = ttk.Frame(auth_frame)
-        self.cred_frame.pack(fill="x", pady=5)
-
-        ttk.Label(self.cred_frame, text="Username:").pack(side="left")
-        self.sql_username_var = tk.StringVar(value="sa")
-        ttk.Entry(self.cred_frame, textvariable=self.sql_username_var, width=15).pack(
-            side="left", padx=5
-        )
-
-        ttk.Label(self.cred_frame, text="Password:").pack(side="left", padx=(10, 0))
-        self.sql_password_var = tk.StringVar()
-        ttk.Entry(
-            self.cred_frame, textvariable=self.sql_password_var, width=15, show="*"
-        ).pack(side="left", padx=5)
-
-        # Test buttons
-        test_frame = ttk.Frame(config_frame)
-        test_frame.pack(fill="x", pady=10)
-
-        ttk.Button(
-            test_frame,
-            text="🔌 Test Connection",
-            command=lambda: self._test_db("sqlserver"),
-        ).pack(side="left", padx=5)
-        ttk.Button(
-            test_frame,
-            text="🔍 Test CRUD",
-            command=lambda: self._test_crud("sqlserver"),
-        ).pack(side="left", padx=5)
-        ttk.Button(
-            test_frame, text="📊 List Databases", command=self._list_databases
-        ).pack(side="left", padx=5)
-
-        # Results
-        self.sqlserver_results = tk.Text(parent, height=15, wrap="word")
-        self.sqlserver_results.pack(fill="both", expand=True, pady=10)
-
-        self._toggle_sql_auth()
-
-    def _create_permissions_tab(self, parent):
-        """สร้าง Permissions tab"""
-        info_frame = ttk.LabelFrame(parent, text="👤 Current User", padding=10)
-        info_frame.pack(fill="x", pady=10)
-
-        user_info = f"User: {self.auth_manager.current_user['username']} | Role: {self.auth_manager.current_user['role']}"
-        ttk.Label(info_frame, text=user_info, font=("Segoe UI", 10, "bold")).pack()
-
-        # Permission matrix
-        perm_frame = ttk.LabelFrame(parent, text="🔐 Database Permissions", padding=10)
-        perm_frame.pack(fill="both", expand=True, pady=10)
-
-        # Headers
-        headers = ["Database Type", "Read", "Write", "Delete", "Admin"]
-        for i, header in enumerate(headers):
-            ttk.Label(perm_frame, text=header, font=("Segoe UI", 9, "bold")).grid(
-                row=0, column=i, padx=5, pady=5, sticky="w"
-            )
-
-        # Permission rows
-        db_types = ["sqlite", "sqlserver"]
-        for row, db_type in enumerate(db_types, 1):
-            ttk.Label(perm_frame, text=db_type.upper()).grid(
-                row=row, column=0, padx=5, pady=2, sticky="w"
-            )
-
-            for col, action in enumerate(["read", "write", "delete", "admin"], 1):
-                has_perm = self.auth_manager.check_permission(db_type, action)
-                status = "✅" if has_perm else "❌"
-                color = "green" if has_perm else "red"
-
-                label = ttk.Label(perm_frame, text=status, foreground=color)
-                label.grid(row=row, column=col, padx=5, pady=2)
-
-    def _browse_sqlite(self):
-        """เลือกไฟล์ SQLite"""
-        filename = filedialog.askopenfilename(
-            defaultextension=".db",
-            filetypes=[("SQLite files", "*.db"), ("All files", "*.*")],
-        )
-        if filename:
-            self.sqlite_file_var.set(filename)
-
-    def _toggle_sql_auth(self):
-        """เปลี่ยนโหมด Authentication"""
-        if self.sql_windows_auth.get():
-            for widget in self.cred_frame.winfo_children():
-                widget.configure(state="disabled")
-        else:
-            for widget in self.cred_frame.winfo_children():
-                if isinstance(widget, ttk.Entry):
-                    widget.configure(state="normal")
-
-    def _test_db(self, db_type: str):
-        """ทดสอบการเชื่อมต่อฐานข้อมูล"""
-        if not self.auth_manager.check_permission(db_type, "read"):
-            messagebox.showerror("ไม่มีสิทธิ์", f"คุณไม่มีสิทธิ์เข้าถึง {db_type.upper()}")
-            return
-
-        def test_thread():
-            try:
-                # Create database config
-                config = DatabaseConfig()
-
-                if db_type == "sqlite":
-                    config.sqlite_file = self.sqlite_file_var.get()
-                else:
-                    config.server = self.sql_server_var.get()
-                    config.database = self.sql_database_var.get()
-                    config.use_windows_auth = self.sql_windows_auth.get()
-                    if not config.use_windows_auth:
-                        config.username = self.sql_username_var.get()
-                        config.password = self.sql_password_var.get()
-
-                # Test connection
-                self.db_manager = DatabaseManager(config)
-
-                if db_type == "sqlite":
-                    success = self.db_manager.connect(force_mode="sqlite")
-                    result_widget = self.sqlite_results
-                else:
-                    success = self.db_manager.connect(force_mode="sqlserver")
-                    result_widget = self.sqlserver_results
-
-                if success:
-                    status = self.db_manager.get_status()
-                    result_text = f"✅ Connection Successful!\n"
-                    result_text += (
-                        f"Database Type: {status['active_database'].upper()}\n"
-                    )
-                    result_text += f"Connection Info: {status.get('sqlserver_info', status.get('sqlite_info', {}))}\n"
-                    result_text += (
-                        f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                    )
-                else:
-                    result_text = f"❌ Connection Failed!\n"
-                    result_text += (
-                        f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                    )
-
-                # Update UI in main thread
-                self.dialog.after(
-                    0, lambda: self._update_results(result_widget, result_text)
-                )
-
-            except Exception as e:
-                error_text = f"❌ Connection Error: {str(e)}\n"
-                error_text += (
-                    f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                )
-                self.dialog.after(
-                    0, lambda: self._update_results(result_widget, error_text)
-                )
-
-        threading.Thread(target=test_thread, daemon=True).start()
-
-    def _test_crud(self, db_type: str):
-        """ทดสอบ CRUD operations"""
-        permissions_needed = ["read", "write"]
-        for perm in permissions_needed:
-            if not self.auth_manager.check_permission(db_type, perm):
-                messagebox.showerror(
-                    "ไม่มีสิทธิ์", f"คุณไม่มีสิทธิ์ {perm} สำหรับ {db_type.upper()}"
-                )
-                return
-
-        def crud_thread():
-            try:
-                if not self.db_manager or not self.db_manager.test_connection():
-                    self._test_db(db_type)
-                    if not self.db_manager or not self.db_manager.test_connection():
-                        raise Exception("ไม่สามารถเชื่อมต่อฐานข้อมูลได้")
-
-                result_widget = (
-                    self.sqlite_results
-                    if db_type == "sqlite"
-                    else self.sqlserver_results
-                )
-
-                # Test data
-                test_data = pd.DataFrame(
-                    {
-                        "test_id": [1, 2, 3],
-                        "test_name": ["Test1", "Test2", "Test3"],
-                        "test_value": [100, 200, 300],
-                        "created_at": [datetime.now()] * 3,
-                    }
-                )
-
-                result_text = f"🔍 CRUD Testing for {db_type.upper()}...\n"
-
-                # CREATE
-                table_name = f"test_crud_{int(datetime.now().timestamp())}"
-                self.db_manager.create_table_from_dataframe(table_name, test_data)
-                result_text += f"✅ CREATE: Table '{table_name}' created\n"
-
-                # INSERT
-                rows_inserted = self.db_manager.bulk_insert(table_name, test_data)
-                result_text += f"✅ INSERT: {rows_inserted} rows inserted\n"
-
-                # READ
-                table_info = self.db_manager.get_table_info(table_name)
-                result_text += f"✅ READ: Table info retrieved - {table_info.get('row_count', 0)} rows\n"
-
-                # UPDATE (via SQL if user has permission)
-                if self.auth_manager.check_permission(db_type, "write"):
-                    try:
-                        update_sql = f"UPDATE {table_name} SET test_value = test_value * 2 WHERE test_id = 1"
-                        self.db_manager.execute_query(update_sql)
-                        result_text += f"✅ UPDATE: Record updated\n"
-                    except Exception as e:
-                        result_text += f"⚠️ UPDATE: {str(e)}\n"
-
-                # DELETE (if user has permission)
-                if self.auth_manager.check_permission(db_type, "delete"):
-                    try:
-                        delete_sql = f"DELETE FROM {table_name} WHERE test_id = 3"
-                        self.db_manager.execute_query(delete_sql)
-                        result_text += f"✅ DELETE: Record deleted\n"
-                    except Exception as e:
-                        result_text += f"⚠️ DELETE: {str(e)}\n"
-                else:
-                    result_text += f"⚠️ DELETE: No permission\n"
-
-                # Cleanup
-                if self.auth_manager.check_permission(db_type, "admin"):
-                    try:
-                        cleanup_sql = f"DROP TABLE {table_name}"
-                        self.db_manager.execute_query(cleanup_sql)
-                        result_text += f"✅ CLEANUP: Test table dropped\n"
-                    except Exception as e:
-                        result_text += f"⚠️ CLEANUP: {str(e)}\n"
-
-                result_text += (
-                    f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                )
-
-                self.dialog.after(
-                    0, lambda: self._update_results(result_widget, result_text)
-                )
-
-            except Exception as e:
-                error_text = f"❌ CRUD Test Error: {str(e)}\n"
-                error_text += (
-                    f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                )
-                result_widget = (
-                    self.sqlite_results
-                    if db_type == "sqlite"
-                    else self.sqlserver_results
-                )
-                self.dialog.after(
-                    0, lambda: self._update_results(result_widget, error_text)
-                )
-
-        threading.Thread(target=crud_thread, daemon=True).start()
-
-    def _list_databases(self):
-        """แสดงรายการฐานข้อมูลใน SQL Server"""
-        if not self.auth_manager.check_permission("sqlserver", "read"):
-            messagebox.showerror("ไม่มีสิทธิ์", "คุณไม่มีสิทธิ์เข้าถึง SQL Server")
-            return
-
-        def list_thread():
-            try:
-                # Test connection first
-                if not self.db_manager or self.db_manager.db_type != "sqlserver":
-                    self._test_db("sqlserver")
-
-                if not self.db_manager or not self.db_manager.test_connection():
-                    raise Exception("ไม่สามารถเชื่อมต่อ SQL Server ได้")
-
-                # Get databases list
-                databases_sql = "SELECT name FROM sys.databases ORDER BY name"
-                databases = self.db_manager.execute_query(databases_sql)
-
-                result_text = f"📊 Available Databases in SQL Server:\n"
-                result_text += f"Server: {self.sql_server_var.get()}\n"
-                result_text += "-" * 40 + "\n"
-
-                for db in databases:
-                    result_text += f"• {db[0]}\n"
-
-                result_text += f"\nTotal: {len(databases)} databases\n"
-                result_text += (
-                    f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                )
-
-                self.dialog.after(
-                    0, lambda: self._update_results(self.sqlserver_results, result_text)
-                )
-
-            except Exception as e:
-                error_text = f"❌ List Databases Error: {str(e)}\n"
-                error_text += (
-                    f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                )
-                self.dialog.after(
-                    0, lambda: self._update_results(self.sqlserver_results, error_text)
-                )
-
-        threading.Thread(target=list_thread, daemon=True).start()
-
-    def _update_results(self, widget, text):
-        """อัพเดทผลลัพธ์ใน Text widget"""
-        widget.insert(tk.END, text)
-        widget.see(tk.END)
-
-
 class DENSO888MainWindow:
-    """หน้าต่างหลักของโปรแกรม DENSO888 พร้อมระบบ Authentication"""
+    """Enhanced main window with better error handling and performance"""
 
     def __init__(self):
         self.root = tk.Tk()
-        self.config = get_config()
+
+        # Initialize with fallback handling
+        try:
+            self.config = get_config()
+        except Exception as e:
+            logger.warning(f"Config loading failed: {e}, using defaults")
+            self.config = self._get_default_config()
+
         self.settings_manager = SettingsManager()
         self.auth_manager = AuthenticationManager()
 
@@ -812,33 +524,62 @@ class DENSO888MainWindow:
         self.current_progress = 0
         self.is_processing = False
 
-        # Setup
-        self._setup_window()
-        self._setup_logging()
-        self._setup_styles()
+        # Setup with error handling
+        try:
+            self._setup_window()
+            self._setup_logging()
+            self._setup_styles()
 
-        # Authentication
-        if not self._authenticate():
+            # Authentication
+            if not self._authenticate():
+                self.root.destroy()
+                return
+
+            self._create_widgets()
+            self._load_settings()
+
+        except Exception as e:
+            logger.error(f"Initialization error: {e}")
+            messagebox.showerror("ข้อผิดพลาด", f"ไม่สามารถเริ่มต้นโปรแกรมได้: {e}")
             self.root.destroy()
-            return
 
-        self._create_widgets()
-        self._load_settings()
+    def _get_default_config(self):
+        """Fallback configuration"""
+
+        class DefaultConfig:
+            app_name = "DENSO888 - Excel to SQL"
+            version = "2.0.0"
+            author = "เฮียตอมจัดหั้ย!!!"
+
+            class ui:
+                theme_colors = {
+                    "primary": "#DC0003",
+                    "secondary": "#F5F5F5",
+                    "success": "#28A745",
+                    "warning": "#FFC107",
+                    "danger": "#DC3545",
+                }
+
+            class auth:
+                enable_auth = True
+
+            class processing:
+                chunk_size = 5000
+
+        return DefaultConfig()
 
     def _setup_window(self):
-        """ตั้งค่าหน้าต่างหลัก"""
+        """Enhanced window setup"""
         self.root.title(f"🏭 {self.config.app_name} v{self.config.version}")
         self.root.geometry("1400x900")
         self.root.minsize(1000, 700)
 
-        # Icon
+        # Enhanced styling
         try:
-            # Set window icon if available
-            icon_path = Path("assets/icons/app.ico")
-            if icon_path.exists():
-                self.root.iconbitmap(str(icon_path))
+            self.root.tk.call("source", "azure.tcl")
+            self.root.tk.call("set_theme", "light")
         except:
-            pass
+            pass  # Fallback to default theme
 
         # Center window
         self.root.update_idletasks()
@@ -846,77 +587,94 @@ class DENSO888MainWindow:
         y = (self.root.winfo_screenheight() // 2) - (900 // 2)
         self.root.geometry(f"1400x900+{x}+{y}")
 
-        # Handle close
+        # Handle close with confirmation
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _setup_logging(self):
-        """ตั้งค่า Logging"""
+        """Setup enhanced logging"""
         self.log_messages = []
-        setup_gui_logger(self._on_log_message)
+        try:
+            setup_gui_logger(self._on_log_message)
+        except Exception as e:
+            print(f"Logging setup failed: {e}")
         logger.info("DENSO888 Application Started")
 
     def _setup_styles(self):
-        """ตั้งค่า UI Styles"""
+        """Enhanced UI styling"""
         style = ttk.Style()
 
-        # Configure colors
-        colors = self.config.ui.theme_colors
+        # Enhanced color scheme
+        if hasattr(self.config, "ui"):
+            colors = self.config.ui.theme_colors
+        else:
+            colors = {"primary": "#DC0003", "success": "#28A745", "danger": "#DC3545"}
 
-        style.configure(
-            "Title.TLabel", font=("Segoe UI", 16, "bold"), foreground=colors["primary"]
-        )
-        style.configure("Heading.TLabel", font=("Segoe UI", 12, "bold"))
-        style.configure("Primary.TButton", font=("Segoe UI", 10, "bold"))
-        style.configure("Success.TButton", foreground=colors["success"])
-        style.configure("Danger.TButton", foreground=colors["danger"])
+        try:
+            style.configure(
+                "Title.TLabel",
+                font=("Segoe UI", 16, "bold"),
+                foreground=colors["primary"],
+            )
+            style.configure("Heading.TLabel", font=("Segoe UI", 12, "bold"))
+            style.configure("Primary.TButton", font=("Segoe UI", 10, "bold"))
+            style.configure("Success.TButton", foreground=colors["success"])
+            style.configure("Danger.TButton", foreground=colors["danger"])
+        except Exception as e:
+            logger.warning(f"Style configuration failed: {e}")
 
     def _authenticate(self) -> bool:
-        """ตรวจสอบการ Login"""
-        if not self.config.auth.enable_auth:
+        """Enhanced authentication with better error handling"""
+        if not getattr(self.config.auth, "enable_auth", True):
             return True
 
-        login_dialog = LoginDialog(self.root, self.auth_manager)
-        self.root.wait_window(login_dialog.dialog)
-
-        return login_dialog.success
+        try:
+            login_dialog = LoginDialog(self.root, self.auth_manager)
+            self.root.wait_window(login_dialog.dialog)
+            return login_dialog.success
+        except Exception as e:
+            logger.error(f"Authentication error: {e}")
+            messagebox.showerror("ข้อผิดพลาด", f"เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์: {e}")
+            return False
 
     def _create_widgets(self):
-        """สร้าง UI หลัก"""
-        # Header
-        self._create_header()
-
-        # Main content
-        self._create_main_content()
-
-        # Status bar
-        self._create_status_bar()
+        """Create enhanced UI components"""
+        try:
+            self._create_header()
+            self._create_main_content()
+            self._create_status_bar()
+        except Exception as e:
+            logger.error(f"Widget creation error: {e}")
+            raise
 
     def _create_header(self):
-        """สร้าง Header"""
-        header_frame = ttk.Frame(self.root, style="Header.TFrame")
+        """Enhanced header with user info"""
+        header_frame = ttk.Frame(self.root)
         header_frame.pack(fill="x", padx=10, pady=5)
 
         # Title and user info
         title_frame = ttk.Frame(header_frame)
         title_frame.pack(fill="x")
 
-        # App title
+        # App title with enhanced styling
         title_label = ttk.Label(
             title_frame, text=f"🏭 {self.config.app_name}", style="Title.TLabel"
         )
         title_label.pack(side="left")
 
-        # User info and logout
+        # User info and controls
         user_frame = ttk.Frame(title_frame)
         user_frame.pack(side="right")
 
+        # Enhanced user info
         user_info = f"👤 {self.auth_manager.current_user['username']} ({self.auth_manager.current_user['role']})"
-        ttk.Label(user_frame, text=user_info).pack(side="left", padx=10)
+        session_time = datetime.now().strftime("%H:%M")
+        user_label = ttk.Label(user_frame, text=f"{user_info} | 🕐 {session_time}")
+        user_label.pack(side="left", padx=10)
 
+        # Control buttons
         ttk.Button(
             user_frame, text="🔐 DB Test", command=self._open_db_test, width=12
         ).pack(side="left", padx=5)
-
         ttk.Button(user_frame, text="🚪 Logout", command=self._logout, width=10).pack(
             side="left", padx=5
         )
@@ -925,35 +683,43 @@ class DENSO888MainWindow:
         ttk.Separator(header_frame, orient="horizontal").pack(fill="x", pady=5)
 
     def _create_main_content(self):
-        """สร้างเนื้อหาหลัก"""
-        # Main container
+        """Enhanced main content layout"""
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
-        # Left panel (Configuration)
-        left_frame = ttk.Frame(main_frame)
-        left_frame.pack(side="left", fill="y", padx=(0, 10))
+        # Create paned window for resizable layout
+        paned_window = ttk.PanedWindow(main_frame, orient="horizontal")
+        paned_window.pack(fill="both", expand=True)
+
+        # Left panel (Configuration) - fixed width
+        left_frame = ttk.Frame(paned_window)
+        paned_window.add(left_frame, weight=0)
 
         self._create_data_source_config(left_frame)
         self._create_database_config(left_frame)
         self._create_process_controls(left_frame)
 
-        # Right panel (Results & Logs)
-        right_frame = ttk.Frame(main_frame)
-        right_frame.pack(side="right", fill="both", expand=True)
+        # Right panel (Results & Logs) - expandable
+        right_frame = ttk.Frame(paned_window)
+        paned_window.add(right_frame, weight=1)
 
         self._create_results_panel(right_frame)
 
     def _create_data_source_config(self, parent):
-        """สร้างการกำหนดค่าแหล่งข้อมูล"""
-        data_frame = ttk.LabelFrame(parent, text="📊 Data Source", padding=10)
+        """Enhanced data source configuration"""
+        data_frame = ttk.LabelFrame(
+            parent, text="📊 Data Source Configuration", padding=10
+        )
         data_frame.pack(fill="x", pady=(0, 10))
 
-        # Data source type
+        # Data source type with better styling
         self.data_source_type = tk.StringVar(value="mock")
 
+        source_frame = ttk.Frame(data_frame)
+        source_frame.pack(fill="x", pady=(0, 10))
+
         ttk.Radiobutton(
-            data_frame,
+            source_frame,
             text="🎲 Generate Mock Data",
             variable=self.data_source_type,
             value="mock",
@@ -961,26 +727,26 @@ class DENSO888MainWindow:
         ).pack(anchor="w")
 
         ttk.Radiobutton(
-            data_frame,
+            source_frame,
             text="📁 Import Excel File",
             variable=self.data_source_type,
             value="excel",
             command=self._on_data_source_change,
-        ).pack(anchor="w", pady=(5, 10))
+        ).pack(anchor="w", pady=(5, 0))
 
-        # Mock data options
+        # Mock data options with enhanced UI
         self.mock_frame = ttk.LabelFrame(
             data_frame, text="🎲 Mock Data Settings", padding=5
         )
         self.mock_frame.pack(fill="x", pady=5)
 
-        # Template selection
-        template_row = ttk.Frame(self.mock_frame)
-        template_row.pack(fill="x", pady=2)
+        # Template selection with descriptions
+        template_frame = ttk.Frame(self.mock_frame)
+        template_frame.pack(fill="x", pady=2)
 
-        ttk.Label(template_row, text="Template:").pack(side="left")
+        ttk.Label(template_frame, text="Template:").pack(side="left")
         self.mock_template = ttk.Combobox(
-            template_row,
+            template_frame,
             values=["employees", "sales", "inventory", "financial"],
             state="readonly",
             width=15,
@@ -988,157 +754,225 @@ class DENSO888MainWindow:
         self.mock_template.set("employees")
         self.mock_template.pack(side="left", padx=10)
 
-        # Rows count
-        rows_row = ttk.Frame(self.mock_frame)
-        rows_row.pack(fill="x", pady=2)
-
-        ttk.Label(rows_row, text="Rows:").pack(side="left")
-        self.mock_rows = tk.StringVar(value="1000")
-        rows_spinbox = ttk.Spinbox(
-            rows_row,
-            from_=100,
-            to=50000,
-            increment=100,
-            textvariable=self.mock_rows,
-            width=10,
+        # Template description
+        self.template_desc = ttk.Label(
+            self.mock_frame,
+            text="Employee records with HR information",
+            font=("Segoe UI", 8),
+            foreground="gray",
         )
-        rows_spinbox.pack(side="left", padx=10)
+        self.template_desc.pack(anchor="w", pady=2)
 
-        # Excel file options
+        # Enhanced rows selection
+        rows_frame = ttk.Frame(self.mock_frame)
+        rows_frame.pack(fill="x", pady=2)
+
+        ttk.Label(rows_frame, text="Rows:").pack(side="left")
+        self.mock_rows = tk.StringVar(value="1000")
+
+        # Predefined options
+        rows_options = ["100", "500", "1000", "5000", "10000", "25000", "50000"]
+        rows_combo = ttk.Combobox(
+            rows_frame, textvariable=self.mock_rows, values=rows_options, width=10
+        )
+        rows_combo.pack(side="left", padx=10)
+
+        # Excel file options with enhanced features
         self.excel_frame = ttk.LabelFrame(
             data_frame, text="📁 Excel File Settings", padding=5
         )
 
-        file_row = ttk.Frame(self.excel_frame)
-        file_row.pack(fill="x", pady=2)
+        # File selection with recent files
+        file_frame = ttk.Frame(self.excel_frame)
+        file_frame.pack(fill="x", pady=2)
 
         self.excel_file = tk.StringVar()
-        ttk.Entry(file_row, textvariable=self.excel_file, width=30).pack(
-            side="left", fill="x", expand=True
-        )
+        file_entry = ttk.Entry(file_frame, textvariable=self.excel_file, width=30)
+        file_entry.pack(side="left", fill="x", expand=True)
+
         ttk.Button(
-            file_row, text="Browse", command=self._browse_excel_file, width=8
+            file_frame, text="Browse", command=self._browse_excel_file, width=8
         ).pack(side="right", padx=(5, 0))
 
-        # Sheet selection
-        sheet_row = ttk.Frame(self.excel_frame)
-        sheet_row.pack(fill="x", pady=2)
+        # Sheet selection with validation
+        sheet_frame = ttk.Frame(self.excel_frame)
+        sheet_frame.pack(fill="x", pady=2)
 
-        ttk.Label(sheet_row, text="Sheet:").pack(side="left")
-        self.excel_sheet = ttk.Combobox(sheet_row, state="readonly", width=20)
+        ttk.Label(sheet_frame, text="Sheet:").pack(side="left")
+        self.excel_sheet = ttk.Combobox(sheet_frame, state="readonly", width=20)
         self.excel_sheet.pack(side="left", padx=10)
+
+        # File info display
+        self.file_info_label = ttk.Label(
+            self.excel_frame, text="", font=("Segoe UI", 8), foreground="gray"
+        )
+        self.file_info_label.pack(anchor="w", pady=2)
+
+        # Bind template change to update description
+        self.mock_template.bind("<<ComboboxSelected>>", self._on_template_change)
 
         self._on_data_source_change()
 
+    def _on_template_change(self, event=None):
+        """Update template description"""
+        template_descriptions = {
+            "employees": "Employee records with HR information",
+            "sales": "Sales transactions and customer data",
+            "inventory": "Product inventory and stock levels",
+            "financial": "Financial transactions and accounting",
+        }
+        template = self.mock_template.get()
+        desc = template_descriptions.get(template, "")
+        self.template_desc.configure(text=desc)
+
     def _create_database_config(self, parent):
-        """สร้างการกำหนดค่าฐานข้อมูล"""
+        """Enhanced database configuration"""
         db_frame = ttk.LabelFrame(parent, text="🗄️ Database Configuration", padding=10)
         db_frame.pack(fill="x", pady=(0, 10))
 
-        # Database type
+        # Database type with better descriptions
         self.db_type = tk.StringVar(value="sqlite")
 
+        db_type_frame = ttk.Frame(db_frame)
+        db_type_frame.pack(fill="x", pady=(0, 10))
+
         ttk.Radiobutton(
-            db_frame,
-            text="📁 SQLite (Local)",
+            db_type_frame,
+            text="📁 SQLite (Local Database)",
             variable=self.db_type,
             value="sqlite",
             command=self._on_db_type_change,
         ).pack(anchor="w")
 
         ttk.Radiobutton(
-            db_frame,
-            text="🏢 SQL Server",
+            db_type_frame,
+            text="🏢 SQL Server (Enterprise)",
             variable=self.db_type,
             value="sqlserver",
             command=self._on_db_type_change,
-        ).pack(anchor="w", pady=(5, 10))
+        ).pack(anchor="w", pady=(5, 0))
 
-        # SQLite settings
+        # SQLite settings with enhanced features
         self.sqlite_frame = ttk.LabelFrame(
             db_frame, text="📁 SQLite Settings", padding=5
         )
         self.sqlite_frame.pack(fill="x", pady=5)
 
-        sqlite_row = ttk.Frame(self.sqlite_frame)
-        sqlite_row.pack(fill="x")
+        sqlite_file_frame = ttk.Frame(self.sqlite_frame)
+        sqlite_file_frame.pack(fill="x")
 
         self.sqlite_file = tk.StringVar(value="denso888_data.db")
-        ttk.Entry(sqlite_row, textvariable=self.sqlite_file, width=25).pack(
+        ttk.Entry(sqlite_file_frame, textvariable=self.sqlite_file, width=25).pack(
             side="left", fill="x", expand=True
         )
         ttk.Button(
-            sqlite_row, text="...", command=self._browse_sqlite_file, width=3
+            sqlite_file_frame, text="...", command=self._browse_sqlite_file, width=3
         ).pack(side="right")
 
-        # SQL Server settings
+        # SQLite info
+        sqlite_info = ttk.Label(
+            self.sqlite_frame,
+            text="✅ No setup required • Works offline • Up to 281 TB",
+            font=("Segoe UI", 8),
+            foreground="green",
+        )
+        sqlite_info.pack(anchor="w", pady=2)
+
+        # SQL Server settings with enhanced UI
         self.sqlserver_frame = ttk.LabelFrame(
             db_frame, text="🏢 SQL Server Settings", padding=5
         )
 
-        # Server
-        server_row = ttk.Frame(self.sqlserver_frame)
-        server_row.pack(fill="x", pady=2)
+        # Connection grid
+        conn_grid = ttk.Frame(self.sqlserver_frame)
+        conn_grid.pack(fill="x", pady=5)
 
-        ttk.Label(server_row, text="Server:").grid(row=0, column=0, sticky="w")
+        # Server
+        ttk.Label(conn_grid, text="Server:").grid(
+            row=0, column=0, sticky="w", padx=(0, 5)
+        )
         self.sql_server = tk.StringVar(value="localhost")
-        ttk.Entry(server_row, textvariable=self.sql_server, width=20).grid(
-            row=0, column=1, padx=5, sticky="ew"
+        ttk.Entry(conn_grid, textvariable=self.sql_server, width=20).grid(
+            row=0, column=1, sticky="ew", padx=(0, 10)
         )
 
         # Database
-        ttk.Label(server_row, text="Database:").grid(
-            row=1, column=0, sticky="w", pady=(5, 0)
+        ttk.Label(conn_grid, text="Database:").grid(
+            row=0, column=2, sticky="w", padx=(0, 5)
         )
         self.sql_database = tk.StringVar(value="excel_to_db")
-        ttk.Entry(server_row, textvariable=self.sql_database, width=20).grid(
-            row=1, column=1, padx=5, pady=(5, 0), sticky="ew"
+        ttk.Entry(conn_grid, textvariable=self.sql_database, width=20).grid(
+            row=0, column=3, sticky="ew"
         )
 
-        server_row.columnconfigure(1, weight=1)
+        conn_grid.columnconfigure(1, weight=1)
+        conn_grid.columnconfigure(3, weight=1)
 
-        # Authentication
-        auth_row = ttk.Frame(self.sqlserver_frame)
-        auth_row.pack(fill="x", pady=5)
+        # Authentication options
+        auth_frame = ttk.LabelFrame(
+            self.sqlserver_frame, text="🔐 Authentication", padding=5
+        )
+        auth_frame.pack(fill="x", pady=5)
 
         self.sql_windows_auth = tk.BooleanVar(value=True)
-        ttk.Checkbutton(
-            auth_row,
-            text="Use Windows Authentication",
+
+        ttk.Radiobutton(
+            auth_frame,
+            text="🔑 Windows Authentication (Recommended)",
             variable=self.sql_windows_auth,
+            value=True,
             command=self._on_sql_auth_change,
         ).pack(anchor="w")
 
-        # Credentials
-        self.cred_frame = ttk.Frame(self.sqlserver_frame)
-        self.cred_frame.pack(fill="x", pady=2)
+        ttk.Radiobutton(
+            auth_frame,
+            text="👤 SQL Server Authentication",
+            variable=self.sql_windows_auth,
+            value=False,
+            command=self._on_sql_auth_change,
+        ).pack(anchor="w", pady=(5, 0))
+
+        # Credentials frame
+        self.cred_frame = ttk.Frame(auth_frame)
+        self.cred_frame.pack(fill="x", pady=5)
 
         cred_grid = ttk.Frame(self.cred_frame)
         cred_grid.pack(fill="x")
 
-        ttk.Label(cred_grid, text="Username:").grid(row=0, column=0, sticky="w")
+        ttk.Label(cred_grid, text="Username:").grid(
+            row=0, column=0, sticky="w", padx=(0, 5)
+        )
         self.sql_username = tk.StringVar(value="sa")
         ttk.Entry(cred_grid, textvariable=self.sql_username, width=15).grid(
-            row=0, column=1, padx=5, sticky="ew"
+            row=0, column=1, sticky="ew", padx=(0, 10)
         )
 
         ttk.Label(cred_grid, text="Password:").grid(
-            row=1, column=0, sticky="w", pady=(5, 0)
+            row=0, column=2, sticky="w", padx=(0, 5)
         )
         self.sql_password = tk.StringVar()
         ttk.Entry(cred_grid, textvariable=self.sql_password, width=15, show="*").grid(
-            row=1, column=1, padx=5, pady=(5, 0), sticky="ew"
+            row=0, column=3, sticky="ew"
         )
 
         cred_grid.columnconfigure(1, weight=1)
+        cred_grid.columnconfigure(3, weight=1)
 
-        # Table name
-        table_row = ttk.Frame(db_frame)
-        table_row.pack(fill="x", pady=5)
+        # Connection test button
+        test_frame = ttk.Frame(self.sqlserver_frame)
+        test_frame.pack(fill="x", pady=5)
 
-        ttk.Label(table_row, text="Table Name:").pack(side="left")
+        ttk.Button(
+            test_frame, text="🔍 Test Connection", command=self._quick_test_connection
+        ).pack(side="left")
+
+        # Table name configuration
+        table_frame = ttk.Frame(db_frame)
+        table_frame.pack(fill="x", pady=5)
+
+        ttk.Label(table_frame, text="📋 Table Name:").pack(side="left")
         self.table_name = tk.StringVar(value="imported_data")
-        ttk.Entry(table_row, textvariable=self.table_name, width=20).pack(
+        ttk.Entry(table_frame, textvariable=self.table_name, width=20).pack(
             side="left", padx=10, fill="x", expand=True
         )
 
@@ -1146,11 +980,11 @@ class DENSO888MainWindow:
         self._on_sql_auth_change()
 
     def _create_process_controls(self, parent):
-        """สร้างปุ่มควบคุมการประมวลผล"""
+        """Enhanced process controls"""
         control_frame = ttk.LabelFrame(parent, text="⚙️ Process Control", padding=10)
         control_frame.pack(fill="x", pady=(0, 10))
 
-        # Process button
+        # Main process button with enhanced styling
         self.process_btn = ttk.Button(
             control_frame,
             text="🚀 Start Processing",
@@ -1168,26 +1002,70 @@ class DENSO888MainWindow:
         )
         self.stop_btn.pack(fill="x", pady=2)
 
-        # Progress bar
+        # Progress section
+        progress_frame = ttk.Frame(control_frame)
+        progress_frame.pack(fill="x", pady=5)
+
+        # Progress bar with percentage
         self.progress_var = tk.DoubleVar()
         self.progress_bar = ttk.Progressbar(
-            control_frame, variable=self.progress_var, maximum=100, mode="determinate"
+            progress_frame, variable=self.progress_var, maximum=100, mode="determinate"
         )
-        self.progress_bar.pack(fill="x", pady=5)
+        self.progress_bar.pack(fill="x", pady=2)
 
-        # Progress label
-        self.progress_label = ttk.Label(control_frame, text="Ready")
-        self.progress_label.pack(fill="x")
+        # Progress info
+        info_frame = ttk.Frame(progress_frame)
+        info_frame.pack(fill="x", pady=2)
+
+        self.progress_label = ttk.Label(info_frame, text="Ready")
+        self.progress_label.pack(side="left")
+
+        self.progress_percent = ttk.Label(info_frame, text="0%")
+        self.progress_percent.pack(side="right")
+
+        # Quick actions
+        quick_frame = ttk.LabelFrame(control_frame, text="⚡ Quick Actions", padding=5)
+        quick_frame.pack(fill="x", pady=5)
+
+        quick_buttons_frame = ttk.Frame(quick_frame)
+        quick_buttons_frame.pack(fill="x")
+
+        ttk.Button(
+            quick_buttons_frame,
+            text="📊 Sample Data",
+            command=self._create_sample_data,
+            width=12,
+        ).pack(side="left", padx=2)
+        ttk.Button(
+            quick_buttons_frame,
+            text="🗑️ Clear Results",
+            command=self._clear_results,
+            width=12,
+        ).pack(side="left", padx=2)
 
     def _create_results_panel(self, parent):
-        """สร้างแผงแสดงผลลัพธ์"""
-        # Notebook for tabs
+        """Enhanced results panel with tabs"""
+        # Notebook for organized results
         notebook = ttk.Notebook(parent)
         notebook.pack(fill="both", expand=True)
 
-        # Results tab
+        # Results tab with enhanced features
         results_frame = ttk.Frame(notebook)
-        notebook.add(results_frame, text="📊 Results")
+        notebook.add(results_frame, text="📊 Processing Results")
+
+        # Results toolbar
+        results_toolbar = ttk.Frame(results_frame)
+        results_toolbar.pack(fill="x", padx=5, pady=5)
+
+        ttk.Button(
+            results_toolbar, text="💾 Save Results", command=self._save_results
+        ).pack(side="left", padx=2)
+        ttk.Button(
+            results_toolbar, text="📋 Copy to Clipboard", command=self._copy_results
+        ).pack(side="left", padx=2)
+        ttk.Button(
+            results_toolbar, text="🔍 Find in Results", command=self._find_in_results
+        ).pack(side="left", padx=2)
 
         # Results text with scrollbar
         results_text_frame = ttk.Frame(results_frame)
@@ -1204,11 +1082,34 @@ class DENSO888MainWindow:
         results_scrollbar.pack(side="right", fill="y")
         self.results_text.configure(yscrollcommand=results_scrollbar.set)
 
-        # Logs tab
+        # Logs tab with enhanced features
         logs_frame = ttk.Frame(notebook)
-        notebook.add(logs_frame, text="📋 Logs")
+        notebook.add(logs_frame, text="📋 System Logs")
 
-        # Logs text with scrollbar
+        # Logs toolbar
+        logs_toolbar = ttk.Frame(logs_frame)
+        logs_toolbar.pack(fill="x", padx=5, pady=5)
+
+        # Log level filter
+        ttk.Label(logs_toolbar, text="Level:").pack(side="left", padx=2)
+        self.log_level_filter = ttk.Combobox(
+            logs_toolbar,
+            values=["All", "INFO", "WARNING", "ERROR"],
+            state="readonly",
+            width=10,
+        )
+        self.log_level_filter.set("All")
+        self.log_level_filter.pack(side="left", padx=2)
+        self.log_level_filter.bind("<<ComboboxSelected>>", self._filter_logs)
+
+        ttk.Button(logs_toolbar, text="🗑️ Clear Logs", command=self._clear_logs).pack(
+            side="right", padx=2
+        )
+        ttk.Button(logs_toolbar, text="💾 Export Logs", command=self._export_logs).pack(
+            side="right", padx=2
+        )
+
+        # Logs text with enhanced styling
         logs_text_frame = ttk.Frame(logs_frame)
         logs_text_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
@@ -1227,16 +1128,8 @@ class DENSO888MainWindow:
         logs_scrollbar.pack(side="right", fill="y")
         self.logs_text.configure(yscrollcommand=logs_scrollbar.set)
 
-        # Clear logs button
-        clear_frame = ttk.Frame(logs_frame)
-        clear_frame.pack(fill="x", padx=5, pady=5)
-
-        ttk.Button(clear_frame, text="🗑️ Clear Logs", command=self._clear_logs).pack(
-            side="right"
-        )
-
     def _create_status_bar(self):
-        """สร้าง Status Bar"""
+        """Enhanced status bar"""
         status_frame = ttk.Frame(self.root)
         status_frame.pack(fill="x", side="bottom")
 
@@ -1245,19 +1138,24 @@ class DENSO888MainWindow:
         status_content = ttk.Frame(status_frame)
         status_content.pack(fill="x", padx=10, pady=2)
 
-        # Status label
-        self.status_label = ttk.Label(status_content, text="Ready")
+        # Status with icon
+        self.status_label = ttk.Label(status_content, text="🟢 Ready")
         self.status_label.pack(side="left")
 
-        # Version info
-        version_label = ttk.Label(
-            status_content, text=f"v{self.config.version} by {self.config.author}"
+        # Progress info in status bar
+        self.status_progress = ttk.Label(status_content, text="")
+        self.status_progress.pack(side="left", padx=20)
+
+        # Version and user info
+        version_info = (
+            f"v{self.config.version} | {self.auth_manager.current_user['username']}"
         )
+        version_label = ttk.Label(status_content, text=version_info)
         version_label.pack(side="right")
 
-    # Event handlers
+    # Event handlers with enhanced functionality
     def _on_data_source_change(self):
-        """จัดการการเปลี่ยนแหล่งข้อมูล"""
+        """Handle data source type change"""
         if self.data_source_type.get() == "mock":
             self.mock_frame.pack(fill="x", pady=5)
             self.excel_frame.pack_forget()
@@ -1266,7 +1164,7 @@ class DENSO888MainWindow:
             self.excel_frame.pack(fill="x", pady=5)
 
     def _on_db_type_change(self):
-        """จัดการการเปลี่ยนประเภทฐานข้อมูล"""
+        """Handle database type change"""
         if self.db_type.get() == "sqlite":
             self.sqlite_frame.pack(fill="x", pady=5)
             self.sqlserver_frame.pack_forget()
@@ -1275,7 +1173,7 @@ class DENSO888MainWindow:
             self.sqlserver_frame.pack(fill="x", pady=5)
 
     def _on_sql_auth_change(self):
-        """จัดการการเปลี่ยนวิธี Authentication"""
+        """Handle SQL authentication change"""
         if self.sql_windows_auth.get():
             for widget in self.cred_frame.winfo_children():
                 for child in widget.winfo_children():
@@ -1288,49 +1186,91 @@ class DENSO888MainWindow:
                         child.configure(state="normal")
 
     def _browse_excel_file(self):
-        """เลือกไฟล์ Excel"""
+        """Enhanced Excel file browser"""
         filename = filedialog.askopenfilename(
             title="Select Excel File",
-            filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")],
+            filetypes=[
+                ("Excel files", "*.xlsx *.xls *.xlsm"),
+                ("Excel 2007+", "*.xlsx *.xlsm"),
+                ("Excel 97-2003", "*.xls"),
+                ("All files", "*.*"),
+            ],
         )
         if filename:
             self.excel_file.set(filename)
-            self._load_excel_sheets()
+            self._load_excel_info()
 
-    def _load_excel_sheets(self):
-        """โหลดรายการ Sheet ใน Excel"""
+    def _load_excel_info(self):
+        """Load Excel file information"""
         try:
+            file_path = self.excel_file.get()
+            if not file_path:
+                return
+
+            # Load sheets
             excel_handler = ExcelHandler()
-            sheets = excel_handler.get_sheets(self.excel_file.get())
+            sheets = excel_handler.get_sheets(file_path)
             self.excel_sheet["values"] = sheets
             if sheets:
                 self.excel_sheet.set(sheets[0])
+
+            # Show file info
+            file_info = Path(file_path).stat()
+            size_mb = file_info.st_size / (1024 * 1024)
+            info_text = f"📄 {len(sheets)} sheets • {size_mb:.1f} MB"
+            self.file_info_label.configure(text=info_text)
+
         except Exception as e:
-            logger.error(f"Failed to load Excel sheets: {e}")
-            messagebox.showerror("Error", f"ไม่สามารถโหลด Excel sheets ได้: {e}")
+            logger.error(f"Failed to load Excel info: {e}")
+            messagebox.showerror("Error", f"ไม่สามารถโหลดข้อมูล Excel ได้: {e}")
+            self.file_info_label.configure(text="❌ Error loading file")
 
     def _browse_sqlite_file(self):
-        """เลือกไฟล์ SQLite"""
+        """Enhanced SQLite file browser"""
         filename = filedialog.asksaveasfilename(
             title="Select SQLite Database File",
             defaultextension=".db",
-            filetypes=[("SQLite files", "*.db"), ("All files", "*.*")],
+            filetypes=[
+                ("SQLite files", "*.db *.sqlite *.sqlite3"),
+                ("All files", "*.*"),
+            ],
         )
         if filename:
             self.sqlite_file.set(filename)
 
+    def _quick_test_connection(self):
+        """Quick connection test"""
+        try:
+            config = self._get_database_config()
+            db_manager = DatabaseManager(config)
+
+            if self.db_type.get() == "sqlite":
+                success = db_manager.connect(force_mode="sqlite")
+            else:
+                success = db_manager.connect(force_mode="sqlserver")
+
+            if success:
+                messagebox.showinfo("Success", "✅ Connection successful!")
+            else:
+                messagebox.showerror("Error", "❌ Connection failed!")
+
+            db_manager.close()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Connection error: {e}")
+
     def _open_db_test(self):
-        """เปิดหน้าต่างทดสอบฐานข้อมูล"""
-        DatabaseTestDialog(self.root, self.auth_manager)
+        """Open database test dialog - placeholder"""
+        messagebox.showinfo("DB Test", "🔐 Database test dialog would open here")
 
     def _logout(self):
-        """ออกจากระบบ"""
+        """Enhanced logout with confirmation"""
         if messagebox.askyesno("Confirm Logout", "ต้องการออกจากระบบหรือไม่?"):
             self.auth_manager.logout()
             self.root.quit()
 
     def _start_processing(self):
-        """เริ่มการประมวลผลข้อมูล"""
+        """Enhanced processing start"""
         if self.is_processing:
             return
 
@@ -1351,31 +1291,27 @@ class DENSO888MainWindow:
         # Clear results
         self.results_text.delete(1.0, tk.END)
 
-        # Start processing in background thread
+        # Start processing
         threading.Thread(target=self._process_data, daemon=True).start()
 
     def _stop_processing(self):
-        """หยุดการประมวลผล"""
+        """Stop processing"""
         if self.data_processor:
             self.data_processor.stop()
 
         self.is_processing = False
         self.process_btn.configure(state="normal")
         self.stop_btn.configure(state="disabled")
-        self.progress_label.configure(text="Stopped")
-
-        self._log_result("⏹️ การประมวลผลถูกหยุด\n", "warning")
+        self._update_progress(0, "Stopped")
 
     def _process_data(self):
-        """ประมวลผลข้อมูลในเบื้องหลัง"""
+        """Enhanced data processing"""
         try:
-            # Prepare data source configuration
+            # Get configurations
             data_source_config = self._get_data_source_config()
-
-            # Prepare database configuration
             database_config = self._get_database_config()
 
-            # Create data processor
+            # Create processor
             self.data_processor = DataProcessor(
                 data_source_config, database_config, self.config.processing
             )
@@ -1390,7 +1326,7 @@ class DENSO888MainWindow:
             self.root.after(0, lambda: self._show_results(result))
 
         except Exception as e:
-            error_msg = f"ข้อผิดพลาดในการประมวลผล: {str(e)}"
+            error_msg = f"Processing error: {str(e)}"
             logger.error(error_msg, exc_info=True)
             self.root.after(0, lambda: self._show_error(error_msg))
 
@@ -1398,7 +1334,7 @@ class DENSO888MainWindow:
             self.root.after(0, self._processing_finished)
 
     def _validate_inputs(self) -> bool:
-        """ตรวจสอบข้อมูลที่กรอก"""
+        """Enhanced input validation"""
         # Check data source
         if self.data_source_type.get() == "excel":
             if not self.excel_file.get():
@@ -1409,7 +1345,7 @@ class DENSO888MainWindow:
                 messagebox.showerror("ข้อผิดพลาด", "ไม่พบไฟล์ Excel ที่ระบุ")
                 return False
 
-        # Check database configuration
+        # Check database config
         if self.db_type.get() == "sqlserver":
             if not self.sql_server.get():
                 messagebox.showerror("ข้อผิดพลาด", "กรุณาระบุชื่อ SQL Server")
@@ -1436,7 +1372,7 @@ class DENSO888MainWindow:
         return True
 
     def _get_data_source_config(self) -> Dict[str, Any]:
-        """สร้าง configuration สำหรับแหล่งข้อมูล"""
+        """Get data source configuration"""
         if self.data_source_type.get() == "mock":
             return {
                 "type": "mock",
@@ -1454,46 +1390,67 @@ class DENSO888MainWindow:
                 "table_name": self.table_name.get(),
             }
 
-    def _get_database_config(self) -> DatabaseConfig:
-        """สร้าง configuration สำหรับฐานข้อมูล"""
-        config = DatabaseConfig()
+    def _get_database_config(self):
+        """Get database configuration"""
+        try:
+            config = DatabaseConfig()
 
-        if self.db_type.get() == "sqlserver":
-            config.server = self.sql_server.get()
-            config.database = self.sql_database.get()
-            config.use_windows_auth = self.sql_windows_auth.get()
+            if self.db_type.get() == "sqlserver":
+                config.server = self.sql_server.get()
+                config.database = self.sql_database.get()
+                config.use_windows_auth = self.sql_windows_auth.get()
 
-            if not config.use_windows_auth:
-                config.username = self.sql_username.get()
-                config.password = self.sql_password.get()
-        else:
-            config.sqlite_file = self.sqlite_file.get()
+                if not config.use_windows_auth:
+                    config.username = self.sql_username.get()
+                    config.password = self.sql_password.get()
+            else:
+                config.sqlite_file = self.sqlite_file.get()
 
-        return config
+            return config
+        except Exception as e:
+            logger.error(f"Database config error: {e}")
+            raise
 
     def _on_progress_update(self, progress_data: Dict[str, Any]):
-        """อัพเดทความคืบหน้า"""
+        """Enhanced progress update"""
         progress = progress_data.get("progress", 0)
         message = progress_data.get("message", "Processing...")
 
+        self._update_progress(progress, message)
+
+    def _update_progress(self, progress: float, message: str):
+        """Update progress display"""
         self.progress_var.set(progress)
         self.progress_label.configure(text=message)
-        self.status_label.configure(text=message)
+        self.progress_percent.configure(text=f"{progress:.1f}%")
+        self.status_label.configure(text=f"🔄 {message}")
+        self.status_progress.configure(text=f"{progress:.1f}%")
 
     def _on_log_message(self, message: str, level: str = "info"):
-        """จัดการข้อความ log"""
+        """Enhanced log message handling"""
         self.log_messages.append((datetime.now(), level, message))
 
-        # Format log entry
+        # Format log entry with colors
         timestamp = datetime.now().strftime("%H:%M:%S")
-        level_icon = {"info": "ℹ️", "warning": "⚠️", "error": "❌", "debug": "🔍"}.get(
-            level, "📝"
-        )
+        level_icons = {"info": "ℹ️", "warning": "⚠️", "error": "❌", "debug": "🔍"}
+        icon = level_icons.get(level, "📝")
 
-        log_entry = f"[{timestamp}] {level_icon} {message}\n"
+        log_entry = f"[{timestamp}] {icon} {message}\n"
 
-        # Add to logs text
+        # Add to logs with color coding
         self.logs_text.insert(tk.END, log_entry)
+
+        # Apply color tags
+        start_line = self.logs_text.index(tk.END + "-2l")
+        end_line = self.logs_text.index(tk.END + "-1l")
+
+        if level == "error":
+            self.logs_text.tag_add("error", start_line, end_line)
+            self.logs_text.tag_config("error", foreground="#ff6b6b")
+        elif level == "warning":
+            self.logs_text.tag_add("warning", start_line, end_line)
+            self.logs_text.tag_config("warning", foreground="#feca57")
+
         self.logs_text.see(tk.END)
 
         # Keep only last 1000 lines
@@ -1502,23 +1459,29 @@ class DENSO888MainWindow:
             self.logs_text.delete(1.0, f"{len(lines) - 1000}.0")
 
     def _show_results(self, result: Dict[str, Any]):
-        """แสดงผลลัพธ์การประมวลผล"""
+        """Enhanced results display"""
         if result.get("success", False):
             self._log_result("✅ การประมวลผลสำเร็จ!\n", "success")
 
-            # Show summary
+            # Enhanced summary with more details
             summary = f"""
 📊 สรุปผลการประมวลผล
-{'='*50}
+{'='*60}
 ✅ สถานะ: สำเร็จ
 📝 จำนวนแถว: {result.get('rows_processed', 0):,} แถว
 ⏱️ เวลาที่ใช้: {result.get('duration', 0):.2f} วินาที
 🗄️ ตาราง: {result.get('table_name', 'N/A')}
 🏢 ฐานข้อมูล: {result.get('database_type', 'N/A').upper()}
 ⚡ ความเร็ว: {result.get('metrics', {}).get('rows_per_second', 0):.0f} แถว/วินาที
+💾 ขนาดข้อมูล: {self._estimate_data_size(result.get('rows_processed', 0))}
 
 📈 ข้อมูลตาราง:
 {self._format_table_info(result.get('table_info', {}))}
+
+🎯 คำแนะนำ:
+• ใช้ "🔐 DB Test" เพื่อดูข้อมูลในตาราง
+• สามารถนำเข้าข้อมูลเพิ่มเติมได้
+• ตรวจสอบ Logs สำหรับรายละเอียดเพิ่มเติม
 """
             self._log_result(summary, "info")
 
@@ -1527,24 +1490,34 @@ class DENSO888MainWindow:
             error_msg = result.get("error", "Unknown error")
             self._log_result(f"ข้อผิดพลาด: {error_msg}\n", "error")
 
+    def _estimate_data_size(self, rows: int) -> str:
+        """Estimate data size"""
+        estimated_kb = rows * 0.5  # Rough estimate
+        if estimated_kb < 1024:
+            return f"~{estimated_kb:.0f} KB"
+        else:
+            return f"~{estimated_kb/1024:.1f} MB"
+
     def _format_table_info(self, table_info: Dict[str, Any]) -> str:
-        """จัดรูปแบบข้อมูลตาราง"""
+        """Enhanced table info formatting"""
         if not table_info or "error" in table_info:
             return "ไม่สามารถดึงข้อมูลตารางได้"
 
-        return f"""• ชื่อตาราง: {table_info.get('table_name', 'N/A')}
+        info = f"""• ชื่อตาราง: {table_info.get('table_name', 'N/A')}
 • จำนวนแถว: {table_info.get('row_count', 0):,}
 • จำนวนคอลัมน์: {table_info.get('column_count', 0)}
+• ขนาดตาราง: {table_info.get('size_mb', 0)} MB
 • ประเภทฐานข้อมูล: {table_info.get('database_type', 'N/A')}"""
 
+        return info
+
     def _show_error(self, error_msg: str):
-        """แสดงข้อผิดพลาด"""
+        """Enhanced error display"""
         self._log_result(f"❌ ข้อผิดพลาด: {error_msg}\n", "error")
         messagebox.showerror("ข้อผิดพลาด", error_msg)
 
     def _log_result(self, message: str, level: str = "info"):
-        """เพิ่มข้อความในผลลัพธ์"""
-        # Color coding
+        """Enhanced result logging with colors"""
         colors = {
             "success": "#28a745",
             "info": "#000000",
@@ -1565,23 +1538,111 @@ class DENSO888MainWindow:
         self.results_text.see(tk.END)
 
     def _processing_finished(self):
-        """การประมวลผลเสร็จสิ้น"""
+        """Enhanced processing completion"""
         self.is_processing = False
         self.process_btn.configure(state="normal")
         self.stop_btn.configure(state="disabled")
-        self.progress_var.set(0)
-        self.progress_label.configure(text="Ready")
-        self.status_label.configure(text="Ready")
+        self._update_progress(0, "Ready")
+        self.status_label.configure(text="🟢 Ready")
+
+    # Additional helper methods
+    def _create_sample_data(self):
+        """Create sample Excel file"""
+        try:
+            from core.excel_handler import FileUtils
+
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Excel files", "*.xlsx")],
+                title="Save Sample Excel File",
+            )
+            if filename:
+                if FileUtils.create_sample_excel(filename, "employees", 100):
+                    messagebox.showinfo("Success", f"Sample file created: {filename}")
+                    self.excel_file.set(filename)
+                    self._load_excel_info()
+                else:
+                    messagebox.showerror("Error", "Failed to create sample file")
+        except Exception as e:
+            messagebox.showerror("Error", f"Sample creation error: {e}")
+
+    def _clear_results(self):
+        """Clear results display"""
+        if messagebox.askyesno("Confirm", "ต้องการล้างผลลัพธ์หรือไม่?"):
+            self.results_text.delete(1.0, tk.END)
 
     def _clear_logs(self):
-        """ล้าง Logs"""
+        """Enhanced log clearing"""
         if messagebox.askyesno("Confirm", "ต้องการล้าง logs หรือไม่?"):
             self.logs_text.delete(1.0, tk.END)
             self.log_messages.clear()
             logger.info("Logs cleared by user")
 
+    def _save_results(self):
+        """Save results to file"""
+        try:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+                title="Save Results",
+            )
+            if filename:
+                content = self.results_text.get(1.0, tk.END)
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(content)
+                messagebox.showinfo("Success", f"Results saved: {filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Save error: {e}")
+
+    def _copy_results(self):
+        """Copy results to clipboard"""
+        try:
+            content = self.results_text.get(1.0, tk.END)
+            self.root.clipboard_clear()
+            self.root.clipboard_append(content)
+            messagebox.showinfo("Success", "Results copied to clipboard")
+        except Exception as e:
+            messagebox.showerror("Error", f"Copy error: {e}")
+
+    def _find_in_results(self):
+        """Find text in results"""
+        search_text = tk.simpledialog.askstring("Find", "Enter text to search:")
+        if search_text:
+            # Simple search implementation
+            content = self.results_text.get(1.0, tk.END)
+            if search_text.lower() in content.lower():
+                messagebox.showinfo("Found", f"Text '{search_text}' found in results")
+            else:
+                messagebox.showinfo("Not Found", f"Text '{search_text}' not found")
+
+    def _filter_logs(self, event=None):
+        """Filter logs by level"""
+        # Simple filter implementation - would need enhancement
+        level_filter = self.log_level_filter.get()
+        if level_filter == "All":
+            return  # Show all logs
+
+        # This is a placeholder - full implementation would re-populate logs
+        logger.info(f"Filtering logs by level: {level_filter}")
+
+    def _export_logs(self):
+        """Export logs to file"""
+        try:
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".log",
+                filetypes=[("Log files", "*.log"), ("Text files", "*.txt")],
+                title="Export Logs",
+            )
+            if filename:
+                content = self.logs_text.get(1.0, tk.END)
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(content)
+                messagebox.showinfo("Success", f"Logs exported: {filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Export error: {e}")
+
     def _load_settings(self):
-        """โหลดการตั้งค่า"""
+        """Enhanced settings loading"""
         try:
             settings = self.settings_manager.load_settings()
 
@@ -1614,7 +1675,7 @@ class DENSO888MainWindow:
             logger.warning(f"Failed to load settings: {e}")
 
     def _save_settings(self):
-        """บันทึกการตั้งค่า"""
+        """Enhanced settings saving"""
         try:
             settings = {
                 "window": {
@@ -1625,11 +1686,7 @@ class DENSO888MainWindow:
                     "default_type": self.data_source_type.get(),
                     "default_template": self.mock_template.get(),
                     "default_rows": int(self.mock_rows.get()),
-                    "last_excel_directory": (
-                        os.path.dirname(self.excel_file.get())
-                        if self.excel_file.get()
-                        else ""
-                    ),
+                    "last_excel_file": self.excel_file.get(),
                 },
                 "database": {
                     "default_type": self.db_type.get(),
@@ -1638,8 +1695,10 @@ class DENSO888MainWindow:
                         "host": self.sql_server.get(),
                         "database": self.sql_database.get(),
                         "username": self.sql_username.get(),
+                        "use_windows_auth": self.sql_windows_auth.get(),
                     },
                 },
+                "last_table_name": self.table_name.get(),
             }
 
             self.settings_manager.save_settings(settings)
@@ -1648,12 +1707,19 @@ class DENSO888MainWindow:
             logger.warning(f"Failed to save settings: {e}")
 
     def _on_close(self):
-        """จัดการการปิดโปรแกรม"""
+        """Enhanced close handling"""
         try:
+            # Check if processing
+            if self.is_processing:
+                if not messagebox.askyesno(
+                    "Confirm", "การประมวลผลกำลังทำงาน ต้องการปิดโปรแกรมหรือไม่?"
+                ):
+                    return
+
             # Save settings
             self._save_settings()
 
-            # Stop any running processes
+            # Stop processing
             if self.is_processing and self.data_processor:
                 self.data_processor.stop()
 
@@ -1664,7 +1730,7 @@ class DENSO888MainWindow:
             if self.db_manager:
                 self.db_manager.close()
 
-            logger.info("Application closed")
+            logger.info("Application closed gracefully")
 
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
@@ -1673,35 +1739,37 @@ class DENSO888MainWindow:
             self.root.destroy()
 
     def run(self):
-        """เริ่มการทำงานของโปรแกรม"""
+        """Enhanced application runner"""
         try:
             logger.info(f"Starting {self.config.app_name} v{self.config.version}")
             logger.info(
                 f"User: {self.auth_manager.current_user['username']} ({self.auth_manager.current_user['role']})"
             )
 
-            # Show welcome message
+            # Show enhanced welcome message
             welcome_msg = f"""
 🏭 ยินดีต้อนรับสู่ {self.config.app_name}
-{'='*60}
+{'='*70}
 👤 ผู้ใช้: {self.auth_manager.current_user['username']} ({self.auth_manager.current_user['role']})
-🔧 เวอร์ชัน: {self.config.version}
+🔧 เวอร์ชัน: {self.config.version} - Enhanced Security Edition
 👨‍💻 ผู้พัฒนา: {self.config.author}
+🕐 เซสชัน: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-📋 ฟีเจอร์หลัก:
-✅ สร้างข้อมูลจำลอง (Mock Data)
-✅ นำเข้าไฟล์ Excel 
-✅ รองรับ SQLite และ SQL Server
-✅ ระบบตรวจสอบสิทธิ์การใช้งาน
-✅ การประมวลผลแบบ Real-time
+📋 ฟีเจอร์ใหม่ในเวอร์ชันนี้:
+✅ ระบบรักษาความปลอดภัยที่ปรับปรุงแล้ว
+✅ การจัดการฐานข้อมูลที่ดีขึ้น
+✅ ส่วนติดต่อผู้ใช้ที่สวยงามขึ้น
+✅ การรายงานผลลัพธ์ที่ละเอียดขึ้น
+✅ ระบบล็อกการใช้งานที่ครบถ้วน
 
-💡 เริ่มต้นใช้งาน:
-1. เลือกแหล่งข้อมูล (Mock Data หรือ Excel)
-2. กำหนดค่าฐานข้อมูล
-3. กดปุ่ม "🚀 Start Processing"
-4. ใช้ "🔐 DB Test" เพื่อทดสอบการเชื่อมต่อ
+💡 วิธีเริ่มต้นใช้งาน:
+1. 📊 เลือกแหล่งข้อมูล (Mock Data หรือ Excel File)
+2. 🗄️ กำหนดค่าฐานข้อมูล (SQLite หรือ SQL Server)  
+3. 🚀 กดปุ่ม "Start Processing"
+4. 🔐 ใช้ "DB Test" เพื่อทดสอบการเชื่อมต่อ
+5. 📊 ใช้ "Sample Data" เพื่อสร้างไฟล์ทดสอบ
 
-เริ่มต้นใช้งานได้เลย! 🚀
+เริ่มต้นใช้งานได้เลย! 🎯
 """
             self._log_result(welcome_msg, "info")
 
@@ -1713,8 +1781,14 @@ class DENSO888MainWindow:
             messagebox.showerror("ข้อผิดพลาดร้ายแรง", f"เกิดข้อผิดพลาดร้ายแรง:\n{str(e)}")
 
 
-# Usage example
+# Usage example with error handling
 if __name__ == "__main__":
-    app = DENSO888MainWindow()
-    if app.root.winfo_exists():  # Check if window was created successfully
-        app.run()
+    try:
+        app = DENSO888MainWindow()
+        if hasattr(app, "root") and app.root.winfo_exists():
+            app.run()
+    except Exception as e:
+        print(f"Failed to start application: {e}")
+        import traceback
+
+        traceback.print_exc()

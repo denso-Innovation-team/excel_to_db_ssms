@@ -1,106 +1,146 @@
-"""DENSO888 Configuration Settings"""
-import os
-from dataclasses import dataclass, field
-from typing import Dict, Any
+#!/usr/bin/env python3
+"""
+DENSO888 - Excel to SQL Management System
+Main Application Entry Point - Fixed Version
+Created by เฮียตอมจัดหั้ย!!!
+"""
 
-@dataclass
-class DatabaseConfig:
-    """Database configuration with complete pool settings"""
-    
-    # Basic connection
-    server: str = "localhost"
-    database: str = "excel_to_db" 
-    username: str = "sa"
-    password: str = ""
-    driver: str = "ODBC Driver 17 for SQL Server"
-    use_windows_auth: bool = True
-    sqlite_file: str = "denso888_data.db"
-    
-    # Pool settings - แก้ไขปัญหาเดิม
-    pool_size: int = 5
-    max_overflow: int = 10
-    pool_timeout: int = 30
-    pool_recycle: int = 3600
-    
-    @classmethod
-    def from_env(cls):
-        """Create config from environment variables"""
-        return cls(
-            server=os.getenv("DB_HOST", "localhost"),
-            database=os.getenv("DB_NAME", "excel_to_db"),
-            username=os.getenv("DB_USER", "sa"),
-            password=os.getenv("DB_PASSWORD", ""),
-            use_windows_auth=os.getenv("DB_USE_WINDOWS_AUTH", "true").lower() == "true",
-            sqlite_file=os.getenv("SQLITE_FILE", "denso888_data.db"),
-            pool_size=int(os.getenv("POOL_SIZE", "5")),
-            max_overflow=int(os.getenv("MAX_OVERFLOW", "10")),
-            pool_timeout=int(os.getenv("POOL_TIMEOUT", "30")),
-            pool_recycle=int(os.getenv("POOL_RECYCLE", "3600"))
+import sys
+import logging
+from pathlib import Path
+
+
+# Setup basic logging with proper error handling
+def setup_logging():
+    """Setup basic logging with fallback"""
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+
+    try:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            handlers=[
+                logging.FileHandler(log_dir / "denso888.log", encoding="utf-8"),
+                logging.StreamHandler(),
+            ],
         )
-    
-    def get_connection_url(self) -> str:
-        """Get SQLAlchemy connection URL"""
+    except Exception:
+        # Fallback to console only
+        logging.basicConfig(level=logging.INFO)
+
+
+def ensure_environment():
+    """Ensure required directories exist"""
+    required_dirs = ["logs", "assets/icons", "assets/samples"]
+    for dir_path in required_dirs:
         try:
-            if self.use_windows_auth:
-                return f"mssql+pyodbc://@{self.server}/{self.database}?driver={self.driver.replace(' ', '+')}&trusted_connection=yes"
-            else:
-                return f"mssql+pyodbc://{self.username}:{self.password}@{self.server}/{self.database}?driver={self.driver.replace(' ', '+')}"
+            Path(dir_path).mkdir(parents=True, exist_ok=True)
         except Exception:
-            return ""
+            pass  # Skip if can't create
 
-@dataclass 
-class ProcessingConfig:
-    """Processing configuration"""
-    batch_size: int = 1000
-    max_workers: int = 4
-    chunk_size: int = 5000
 
-@dataclass
-class UIConfig:
-    """UI configuration"""
-    window_width: int = 1400
-    window_height: int = 900
-    theme_colors: Dict[str, str] = field(default_factory=lambda: {
-        "primary": "#DC0003",
-        "secondary": "#F5F5F5", 
-        "success": "#28A745",
-        "warning": "#FFC107",
-        "danger": "#DC3545"
-    })
+def check_dependencies():
+    """Check essential dependencies with better error handling"""
+    required_modules = ["tkinter", "pandas", "sqlalchemy", "openpyxl"]
+    missing = []
 
-@dataclass
-class AuthConfig:
-    """Authentication configuration"""
-    enable_auth: bool = True
-    session_timeout: int = 3600
-    max_login_attempts: int = 3
+    for module in required_modules:
+        try:
+            if module == "tkinter":
+                import tkinter
 
-@dataclass
-class AppConfig:
-    """Main application configuration"""
-    app_name: str = "DENSO888 - Excel to SQL"
-    version: str = "2.0.0"
-    author: str = "เฮียตอมจัดหั้ย!!!"
-    
-    # Sub-configurations
-    ui: UIConfig = field(default_factory=UIConfig)
-    database: DatabaseConfig = field(default_factory=DatabaseConfig.from_env)
-    processing: ProcessingConfig = field(default_factory=ProcessingConfig)
-    auth: AuthConfig = field(default_factory=AuthConfig)
+                # Test GUI capability
+                root = tkinter.Tk()
+                root.withdraw()
+                root.destroy()
+            else:
+                __import__(module)
+        except ImportError:
+            missing.append(module)
 
-def get_config() -> AppConfig:
-    """Get application configuration"""
+    if missing:
+        print(f"❌ Missing dependencies: {', '.join(missing)}")
+        print(
+            "💡 Install with: pip install pandas sqlalchemy pyodbc openpyxl python-dotenv tqdm"
+        )
+        return False
+
+    return True
+
+
+def load_environment():
+    """Load environment variables if available"""
     try:
         from dotenv import load_dotenv
-        load_dotenv()
+
+        env_file = Path(".env")
+        if env_file.exists():
+            load_dotenv(env_file)
+            print("✅ Environment variables loaded")
     except ImportError:
-        pass
-    
-    config = AppConfig()
-    
-    # Override processing from environment
-    config.processing.batch_size = int(os.getenv("BATCH_SIZE", str(config.processing.batch_size)))
-    config.processing.max_workers = int(os.getenv("MAX_WORKERS", str(config.processing.max_workers)))
-    config.processing.chunk_size = int(os.getenv("CHUNK_SIZE", str(config.processing.chunk_size)))
-    
-    return config
+        pass  # python-dotenv not installed
+
+
+def main():
+    """Main application entry point with enhanced error handling"""
+    print("🏭 DENSO888 - Excel to SQL Management System")
+    print("   by เฮียตอมจัดหั้ย!!!")
+    print("=" * 50)
+
+    try:
+        # Setup logging first
+        setup_logging()
+
+        # Setup environment
+        ensure_environment()
+
+        # Check dependencies
+        if not check_dependencies():
+            input("กด Enter เพื่อออก...")
+            return 1
+
+        # Load environment variables
+        load_environment()
+
+        # Import and run main application
+        try:
+            from gui.main_window import DENSO888MainWindow
+        except ImportError as import_error:
+            print(f"❌ Import Error: {import_error}")
+            print("💡 ตรวจสอบว่าไฟล์ gui/main_window.py มีอยู่และถูกต้อง")
+            input("กด Enter เพื่อออก...")
+            return 1
+
+        # Create and run application
+        try:
+            app = DENSO888MainWindow()
+            if hasattr(app, "root") and app.root.winfo_exists():
+                print("🚀 Starting DENSO888 application...")
+                app.run()
+            else:
+                print("❌ Failed to initialize GUI (Authentication cancelled)")
+                return 1
+
+        except Exception as app_error:
+            logging.error(f"Application error: {app_error}", exc_info=True)
+            print(f"❌ Application Error: {app_error}")
+            print("📄 ตรวจสอบไฟล์ logs/denso888.log สำหรับรายละเอียด")
+            return 1
+
+    except KeyboardInterrupt:
+        print("\n👋 ถูกยกเลิกโดยผู้ใช้")
+        return 0
+
+    except Exception as e:
+        logging.error(f"Fatal application error: {e}", exc_info=True)
+        print(f"❌ Critical Error: {e}")
+        print("📄 ตรวจสอบไฟล์ logs/denso888.log สำหรับรายละเอียด")
+        input("กด Enter เพื่อออก...")
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

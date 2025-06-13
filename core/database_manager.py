@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class SQLServerManager:
-    """SQL Server database manager"""
+    """SQL Server database manager with improved error handling"""
 
     def __init__(self, config):
         self.config = config
@@ -17,20 +17,24 @@ class SQLServerManager:
         self._connection_info: Dict[str, str] = {}
 
     def connect(self) -> bool:
-        """Establish SQL Server connection"""
+        """Establish SQL Server connection with better error handling"""
         try:
+            connection_url = self.config.get_connection_url()
+            if not connection_url:
+                logger.error("Invalid SQL Server connection URL")
+                return False
+
             self.engine = create_engine(
-                self.config.get_connection_url(),
-                pool_size=self.config.pool_size,
-                max_overflow=self.config.max_overflow,
-                pool_timeout=self.config.pool_timeout,
-                pool_recycle=self.config.pool_recycle,
+                connection_url,
+                pool_size=getattr(self.config, "pool_size", 5),
+                max_overflow=getattr(self.config, "max_overflow", 10),
+                pool_timeout=getattr(self.config, "pool_timeout", 30),
+                pool_recycle=getattr(self.config, "pool_recycle", 3600),
                 echo=False,
+                connect_args={"timeout": 10},  # Connection timeout
             )
 
-            # Test connection
-            if not self.engine:
-                return False
+            # Test connection with timeout
             with self.engine.connect() as conn:
                 result = conn.execute(
                     text("SELECT @@SERVERNAME as server, DB_NAME() as database")
@@ -41,6 +45,9 @@ class SQLServerManager:
                         "server": str(row.server),
                         "database": str(row.database),
                         "type": "SQL Server",
+                        "auth_type": (
+                            "Windows" if self.config.use_windows_auth else "SQL Server"
+                        ),
                     }
                     logger.info(f"Connected to SQL Server: {row.server}/{row.database}")
                     return True
@@ -53,12 +60,9 @@ class SQLServerManager:
             return False
 
     def test_connection(self) -> bool:
-        """Test existing connection"""
+        """Test existing connection with proper error handling"""
         if not self.engine:
-            if not self.connect():
-                return False
-            if not self.engine:  # Double check after connect attempt
-                return False
+            return self.connect()
 
         try:
             with self.engine.connect() as conn:
@@ -74,27 +78,27 @@ class SQLServerManager:
         df: pd.DataFrame,
         type_mapping: Optional[Dict[str, str]] = None,
     ) -> None:
-        """Create table from DataFrame structure"""
+        """Create table from DataFrame structure with improved error handling"""
         if not self.engine:
             raise RuntimeError("SQL Server not connected")
 
-        # Build column definitions
-        columns_sql = ["id INT IDENTITY(1,1) PRIMARY KEY"]
-
-        for col_name in df.columns:
-            dtype = df[col_name].dtype
-            sql_type = self._map_pandas_to_sql_type(
-                dtype, type_mapping.get(col_name) if type_mapping else None
-            )
-            columns_sql.append(f"[{col_name}] {sql_type}")
-
-        # Execute DDL
-        drop_sql = (
-            f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE [{table_name}]"
-        )
-        create_sql = f"CREATE TABLE [{table_name}] ({', '.join(columns_sql)})"
-
         try:
+            # Build column definitions with better type mapping
+            columns_sql = ["id INT IDENTITY(1,1) PRIMARY KEY"]
+
+            for col_name in df.columns:
+                dtype = df[col_name].dtype
+                sql_type = self._map_pandas_to_sql_type(
+                    dtype, type_mapping.get(col_name) if type_mapping else None
+                )
+                # Escape column names properly
+                safe_col_name = f"[{col_name.replace(']', ']]')}]"
+                columns_sql.append(f"{safe_col_name} {sql_type}")
+
+            # Execute DDL with better error handling
+            drop_sql = f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE [{table_name}]"
+            create_sql = f"CREATE TABLE [{table_name}] ({', '.join(columns_sql)})"
+
             with self.engine.connect() as conn:
                 with conn.begin():
                     conn.execute(text(drop_sql))
@@ -107,13 +111,14 @@ class SQLServerManager:
             raise
 
     def bulk_insert(self, table_name: str, df: pd.DataFrame) -> int:
-        """Bulk insert DataFrame to table"""
+        """Bulk insert DataFrame to table with improved performance"""
         if not self.engine:
             raise RuntimeError("SQL Server not connected")
 
         df_clean = self._prepare_dataframe_for_sql_server(df)
 
         try:
+            # Use chunked insertion for better performance
             with self.engine.begin() as conn:
                 df_clean.to_sql(
                     name=table_name,
@@ -121,7 +126,7 @@ class SQLServerManager:
                     if_exists="append",
                     index=False,
                     method="multi",
-                    chunksize=1000,
+                    chunksize=min(1000, len(df_clean)),
                 )
 
             row_count = len(df_clean)
@@ -137,7 +142,7 @@ class SQLServerManager:
             raise
 
     def execute_query(self, query: str) -> Any:
-        """Execute custom SQL query"""
+        """Execute custom SQL query with timeout"""
         if not self.engine:
             raise RuntimeError("SQL Server not connected")
 
@@ -150,7 +155,7 @@ class SQLServerManager:
             raise
 
     def get_table_info(self, table_name: str) -> Dict[str, Any]:
-        """Get table information"""
+        """Get table information with enhanced details"""
         if not self.engine:
             raise RuntimeError("SQL Server not connected")
 
@@ -158,7 +163,9 @@ class SQLServerManager:
             query = f"""
             SELECT 
                 COUNT(*) as row_count,
-                (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table_name}') as column_count
+                (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table_name}') as column_count,
+                (SELECT SUM(reserved_page_count) * 8.0 / 1024 FROM sys.dm_db_partition_stats 
+                 WHERE object_id = OBJECT_ID('{table_name}')) as size_mb
             FROM [{table_name}]
             """
 
@@ -170,6 +177,7 @@ class SQLServerManager:
                     "table_name": table_name,
                     "row_count": row.row_count if row else 0,
                     "column_count": row.column_count if row else 0,
+                    "size_mb": round(row.size_mb or 0, 2),
                     "database_type": "SQL Server",
                     "server_info": self._connection_info,
                 }
@@ -180,19 +188,28 @@ class SQLServerManager:
     def _map_pandas_to_sql_type(
         self, pandas_dtype, explicit_type: Optional[str] = None
     ) -> str:
-        """Map pandas dtype to SQL Server type"""
+        """Enhanced pandas to SQL Server type mapping"""
         if explicit_type:
             type_mapping = {
                 "string": "NVARCHAR(255)",
                 "text": "NVARCHAR(MAX)",
                 "integer": "INT",
+                "bigint": "BIGINT",
                 "float": "FLOAT",
+                "decimal": "DECIMAL(18,2)",
                 "boolean": "BIT",
                 "datetime": "DATETIME2",
+                "date": "DATE",
+                "time": "TIME",
             }
             return type_mapping.get(explicit_type, "NVARCHAR(255)")
 
+        # Enhanced type detection
+        dtype_str = str(pandas_dtype).lower()
+
         if pd.api.types.is_integer_dtype(pandas_dtype):
+            if "int64" in dtype_str:
+                return "BIGINT"
             return "INT"
         elif pd.api.types.is_float_dtype(pandas_dtype):
             return "FLOAT"
@@ -204,23 +221,32 @@ class SQLServerManager:
             return "NVARCHAR(255)"
 
     def _prepare_dataframe_for_sql_server(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Prepare DataFrame for SQL Server insertion"""
+        """Enhanced DataFrame preparation for SQL Server"""
         df_clean = df.copy()
 
-        # Handle datetime columns
+        # Handle datetime columns with better format
         for col in df_clean.columns:
             if pd.api.types.is_datetime64_any_dtype(df_clean[col]):
                 df_clean[col] = (
-                    df_clean[col].dt.strftime("%Y-%m-%d %H:%M:%S").replace("NaT", None)
+                    df_clean[col]
+                    .dt.strftime("%Y-%m-%d %H:%M:%S.%f")
+                    .replace("NaT", None)
                 )
 
-        # Replace NaN with None
+        # Replace NaN with None for proper NULL handling
         df_clean = df_clean.where(pd.notnull(df_clean), None)
+
+        # Handle very long strings
+        for col in df_clean.select_dtypes(include=["object"]).columns:
+            df_clean[col] = (
+                df_clean[col].astype(str).str[:255]
+            )  # Truncate to fit NVARCHAR(255)
+
         return df_clean
 
 
 class SQLiteManager:
-    """SQLite fallback database manager"""
+    """Enhanced SQLite manager with better error handling"""
 
     def __init__(self, db_file: Union[str, Path] = "denso888_data.db"):
         self.db_file = Path(db_file)
@@ -228,11 +254,25 @@ class SQLiteManager:
         self._connection_info: Dict[str, Union[str, float]] = {}
 
     def connect(self) -> bool:
-        """Establish SQLite connection"""
+        """Establish SQLite connection with better configuration"""
         try:
-            self.connection = sqlite3.connect(str(self.db_file))
+            # Ensure directory exists
+            self.db_file.parent.mkdir(parents=True, exist_ok=True)
+
+            self.connection = sqlite3.connect(
+                str(self.db_file),
+                timeout=30.0,  # Connection timeout
+                check_same_thread=False,
+            )
+
+            # Configure SQLite for better performance
+            self.connection.execute("PRAGMA journal_mode=WAL")
+            self.connection.execute("PRAGMA synchronous=NORMAL")
+            self.connection.execute("PRAGMA cache_size=1000000")
+            self.connection.execute("PRAGMA temp_store=memory")
+
             self._connection_info = {
-                "file_path": str(self.db_file),
+                "file_path": str(self.db_file.absolute()),
                 "file_size_mb": (
                     self.db_file.stat().st_size / 1024 / 1024
                     if self.db_file.exists()
@@ -242,6 +282,7 @@ class SQLiteManager:
             }
             logger.info(f"Connected to SQLite database: {self.db_file}")
             return True
+
         except Exception as e:
             logger.error(f"SQLite connection failed: {e}")
             return False
@@ -265,7 +306,7 @@ class SQLiteManager:
         df: pd.DataFrame,
         type_mapping: Optional[Dict[str, str]] = None,
     ) -> None:
-        """Create table from DataFrame structure"""
+        """Create table from DataFrame with better type handling"""
         if not self.connection:
             raise RuntimeError("SQLite not connected")
 
@@ -273,12 +314,18 @@ class SQLiteManager:
             # Drop existing table
             self.connection.execute(f"DROP TABLE IF EXISTS {table_name}")
 
-            # Create table using pandas to_sql
+            # Create table using pandas with optimized settings
             df_sample = df.head(0)  # Empty DataFrame with structure
             df_sample.to_sql(
-                table_name, self.connection, index=False, if_exists="replace"
+                table_name,
+                self.connection,
+                index=False,
+                if_exists="replace",
+                method="multi",
             )
 
+            # Commit changes
+            self.connection.commit()
             logger.info(f"SQLite table '{table_name}' created successfully")
 
         except Exception as e:
@@ -286,12 +333,22 @@ class SQLiteManager:
             raise
 
     def bulk_insert(self, table_name: str, df: pd.DataFrame) -> int:
-        """Bulk insert DataFrame to table"""
+        """Bulk insert with transaction and better performance"""
         if not self.connection:
             raise RuntimeError("SQLite not connected")
 
         try:
-            df.to_sql(table_name, self.connection, index=False, if_exists="append")
+            # Use transaction for better performance
+            with self.connection:
+                df.to_sql(
+                    table_name,
+                    self.connection,
+                    index=False,
+                    if_exists="append",
+                    method="multi",
+                    chunksize=1000,
+                )
+
             row_count = len(df)
             logger.debug(f"Inserted {row_count:,} rows to SQLite table '{table_name}'")
             return row_count
@@ -314,7 +371,7 @@ class SQLiteManager:
             raise
 
     def get_table_info(self, table_name: str) -> Dict[str, Any]:
-        """Get table information"""
+        """Get enhanced table information"""
         if not self.connection:
             raise RuntimeError("SQLite not connected")
 
@@ -329,10 +386,18 @@ class SQLiteManager:
             cursor.execute(f"PRAGMA table_info({table_name})")
             columns = cursor.fetchall()
 
+            # Get table size (approximate)
+            cursor.execute(f"SELECT SUM(LENGTH(json(*))); FROM {table_name} LIMIT 1000")
+            size_sample = cursor.fetchone()[0] or 0
+            estimated_size_mb = (
+                (size_sample * row_count / 1000) / (1024 * 1024) if size_sample else 0
+            )
+
             return {
                 "table_name": table_name,
                 "row_count": row_count,
                 "column_count": len(columns),
+                "estimated_size_mb": round(estimated_size_mb, 2),
                 "database_type": "SQLite",
                 "file_info": self._connection_info,
             }
@@ -342,19 +407,21 @@ class SQLiteManager:
 
 
 class DatabaseManager:
-    """Hybrid database manager with SQL Server primary and SQLite fallback"""
+    """Enhanced hybrid database manager with improved fallback logic"""
 
     def __init__(self, config, sqlite_file: Optional[Union[str, Path]] = None):
         self.config = config
         self.sqlserver = SQLServerManager(config)
-        self.sqlite = SQLiteManager(sqlite_file or "denso888_data.db")
+        self.sqlite = SQLiteManager(
+            sqlite_file or getattr(config, "sqlite_file", "denso888_data.db")
+        )
 
         self.active_db: Optional[Union[SQLServerManager, SQLiteManager]] = None
         self.db_type: str = "none"
         self._forced_mode: Optional[str] = None
 
     def connect(self, force_mode: Optional[str] = None) -> bool:
-        """Connect with fallback logic"""
+        """Connect with improved fallback logic and timeout handling"""
         self._forced_mode = force_mode
 
         if force_mode == "sqlite":
@@ -365,24 +432,28 @@ class DatabaseManager:
             return self._connect_with_fallback()
 
     def _connect_with_fallback(self) -> bool:
-        """Try SQL Server first, fallback to SQLite"""
+        """Try SQL Server first with timeout, fallback to SQLite"""
         logger.info("Attempting SQL Server connection...")
 
-        if self.sqlserver.connect():
-            self.active_db = self.sqlserver
-            self.db_type = "sqlserver"
-            logger.info("Connected to SQL Server")
-            return True
+        # Try SQL Server with timeout
+        try:
+            if self.sqlserver.connect():
+                self.active_db = self.sqlserver
+                self.db_type = "sqlserver"
+                logger.info("✅ Connected to SQL Server")
+                return True
+        except Exception as e:
+            logger.warning(f"SQL Server connection failed: {e}")
 
         logger.warning("SQL Server unavailable, falling back to SQLite...")
 
         if self.sqlite.connect():
             self.active_db = self.sqlite
             self.db_type = "sqlite"
-            logger.info("Connected to SQLite fallback")
+            logger.info("✅ Connected to SQLite fallback")
             return True
 
-        logger.error("No database connection available")
+        logger.error("❌ No database connection available")
         return False
 
     def _connect_sqlite_only(self) -> bool:
@@ -390,6 +461,7 @@ class DatabaseManager:
         if self.sqlite.connect():
             self.active_db = self.sqlite
             self.db_type = "sqlite"
+            logger.info("✅ Connected to SQLite (forced mode)")
             return True
         return False
 
@@ -398,14 +470,20 @@ class DatabaseManager:
         if self.sqlserver.connect():
             self.active_db = self.sqlserver
             self.db_type = "sqlserver"
+            logger.info("✅ Connected to SQL Server (forced mode)")
             return True
         return False
 
     def test_connection(self) -> bool:
-        """Test current connection"""
+        """Test current connection with retry logic"""
         if not self.active_db:
             return self.connect()
-        return self.active_db.test_connection()
+
+        try:
+            return self.active_db.test_connection()
+        except Exception as e:
+            logger.error(f"Connection test failed: {e}")
+            return False
 
     def create_table_from_dataframe(
         self,
@@ -413,68 +491,114 @@ class DatabaseManager:
         df: pd.DataFrame,
         type_mapping: Optional[Dict[str, str]] = None,
     ) -> None:
-        """Create table from DataFrame"""
+        """Create table from DataFrame with enhanced error handling"""
         if not self.active_db:
             raise RuntimeError("No database connected")
 
-        self.active_db.create_table_from_dataframe(table_name, df, type_mapping)
+        try:
+            self.active_db.create_table_from_dataframe(table_name, df, type_mapping)
 
-        if self.db_type == "sqlite":
-            logger.info("💡 Data saved to SQLite. Can migrate to SQL Server later.")
+            if self.db_type == "sqlite":
+                logger.info(
+                    "💡 Data saved to SQLite. Use 'DB Test' to try SQL Server migration."
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to create table '{table_name}': {e}")
+            raise
 
     def bulk_insert(self, table_name: str, df: pd.DataFrame) -> int:
-        """Bulk insert data"""
+        """Bulk insert data with retry logic"""
         if not self.active_db:
             raise RuntimeError("No database connected")
 
-        return self.active_db.bulk_insert(table_name, df)
+        try:
+            return self.active_db.bulk_insert(table_name, df)
+        except Exception as e:
+            logger.error(f"Failed to insert data to '{table_name}': {e}")
+            raise
 
     def execute_query(self, query: str) -> Any:
-        """Execute custom query"""
+        """Execute custom query with enhanced error handling"""
         if not self.active_db:
             raise RuntimeError("No database connected")
 
-        return self.active_db.execute_query(query)
+        try:
+            return self.active_db.execute_query(query)
+        except Exception as e:
+            logger.error(f"Query execution failed: {e}")
+            raise
 
     def get_table_info(self, table_name: str) -> Dict[str, Any]:
-        """Get table information"""
+        """Get table information with enhanced details"""
         if not self.active_db:
             raise RuntimeError("No database connected")
 
-        return self.active_db.get_table_info(table_name)
+        try:
+            return self.active_db.get_table_info(table_name)
+        except Exception as e:
+            logger.error(f"Failed to get table info: {e}")
+            return {"error": str(e)}
 
     def get_status(self) -> Dict[str, Any]:
-        """Get database manager status"""
+        """Get comprehensive database manager status"""
         status = {
             "active_database": self.db_type,
             "forced_mode": self._forced_mode,
             "connections": {
-                "sqlserver_available": self.sqlserver.test_connection(),
-                "sqlite_available": self.sqlite.test_connection(),
+                "sqlserver_available": False,
+                "sqlite_available": False,
             },
+            "performance_info": {},
         }
 
-        if self.db_type == "sqlserver":
+        # Test both connections
+        try:
+            status["connections"][
+                "sqlserver_available"
+            ] = self.sqlserver.test_connection()
+        except:
+            pass
+
+        try:
+            status["connections"]["sqlite_available"] = self.sqlite.test_connection()
+        except:
+            pass
+
+        # Add connection info
+        if self.db_type == "sqlserver" and self.sqlserver._connection_info:
             status["sqlserver_info"] = self.sqlserver._connection_info
-        elif self.db_type == "sqlite":
+        elif self.db_type == "sqlite" and self.sqlite._connection_info:
             status["sqlite_info"] = self.sqlite._connection_info
 
         return status
 
     def switch_database(self, target: str) -> bool:
-        """Switch between database types"""
+        """Switch between database types with proper cleanup"""
         if target not in ["sqlserver", "sqlite"]:
             raise ValueError("Target must be 'sqlserver' or 'sqlite'")
 
         logger.info(f"Switching to {target} database...")
+
+        # Close current connection
+        self.close()
+
+        # Connect to target
         return self.connect(force_mode=target)
 
     def close(self):
-        """Close all connections"""
-        if self.sqlserver.engine:
-            self.sqlserver.engine.dispose()
-        if self.sqlite.connection:
-            self.sqlite.connection.close()
+        """Close all connections with proper cleanup"""
+        try:
+            if self.sqlserver.engine:
+                self.sqlserver.engine.dispose()
+        except Exception as e:
+            logger.warning(f"Error closing SQL Server connection: {e}")
+
+        try:
+            if self.sqlite.connection:
+                self.sqlite.connection.close()
+        except Exception as e:
+            logger.warning(f"Error closing SQLite connection: {e}")
 
         self.active_db = None
         self.db_type = "none"

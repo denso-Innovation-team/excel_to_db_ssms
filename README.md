@@ -1,29 +1,33 @@
 # 🏭 DENSO888 - Excel to SQL Management System
 
-**Professional Desktop Application สำหรับนำเข้าข้อมูล Excel เข้าสู่ฐานข้อมูล SQL Server และ SQLite**
+## Professional Desktop Application สำหรับนำเข้าข้อมูล Excel เข้าสู่ฐานข้อมูล SQL Server และ SQLite
 
 Created by **เฮียตอมจัดหั้ย!!!** 🚀
 
 ## ✨ Key Features
 
 ### 🔐 **Authentication & Security**
+
 - User Login/Logout system with role-based permissions
 - Admin and User roles with database access control
 - Session management with auto-timeout
 
 ### 📊 **Data Sources**
+
 - **Mock Data Generation:** สร้างข้อมูลทดสอบ 100-50,000 แถว
   - Employee, Sales, Inventory, Financial templates
 - **Excel Import:** รองรับ .xlsx, .xls, .xlsm
   - Multi-sheet support และ auto-type detection
 
 ### 🗄️ **Database Support**
+
 - **SQLite:** ใช้งานได้ทันที (Local database)
 - **SQL Server:** Enterprise database support
   - Windows Authentication และ SQL Server Authentication
   - Auto-fallback to SQLite เมื่อ SQL Server ไม่พร้อม
 
 ### ⚙️ **Processing Features**
+
 - Real-time progress tracking
 - Chunked processing สำหรับไฟล์ขนาดใหญ่
 - Background processing ไม่หยุดการทำงาน UI
@@ -32,6 +36,7 @@ Created by **เฮียตอมจัดหั้ย!!!** 🚀
 ## 🚀 Quick Start
 
 ### ✅ **Easy Installation**
+
 ```bash
 # 1. Clone or download project
 # 2. Double-click start_denso888.bat (Windows)
@@ -41,12 +46,14 @@ python main.py
 ```
 
 ### 🔑 **Default Login**
+
 ```
 Username: admin
 Password: admin123
 ```
 
 ### 📋 **Basic Usage**
+
 1. Login เข้าระบบ
 2. เลือกแหล่งข้อมูล (Mock Data หรือ Excel File)
 3. กำหนดค่าฐานข้อมูล (SQLite หรือ SQL Server)
@@ -56,15 +63,17 @@ Password: admin123
 ## 🛠️ Configuration
 
 ### **SQL Server Connection**
+
 ```
 Server: localhost หรือ ชื่อ Server
 Database: excel_to_db
-Authentication: 
+Authentication:
   ✅ Windows Authentication (แนะนำ)
   ✅ SQL Server Authentication (username/password)
 ```
 
 ### **SQLite (Default)**
+
 ```
 File: denso888_data.db
 ✅ ไม่ต้องติดตั้งเพิ่มเติม
@@ -102,11 +111,11 @@ denso888-excel-to-sql/
 
 ## 🎯 Performance
 
-| Dataset Size  | Processing Time | Memory Usage |
-|---------------|-----------------|--------------|
-| 1,000 rows    | < 5 seconds    | < 50 MB      |
-| 10,000 rows   | < 30 seconds   | < 100 MB     |
-| 50,000 rows   | < 2 minutes    | < 200 MB     |
+| Dataset Size | Processing Time | Memory Usage |
+| ------------ | --------------- | ------------ |
+| 1,000 rows   | < 5 seconds     | < 50 MB      |
+| 10,000 rows  | < 30 seconds    | < 100 MB     |
+| 50,000 rows  | < 2 minutes     | < 200 MB     |
 
 ## 🛡️ Security Features
 
@@ -131,10 +140,12 @@ INSTALL_DENSO888.bat
 ### **Common Issues:**
 
 1. **"ไม่สามารถเชื่อมต่อ SQL Server ได้"**
+
    - ตรวจสอบชื่อ Server และ ODBC Driver
    - ใช้ SQLite แทนได้
 
 2. **"Excel file ไม่สามารถอ่านได้"**
+
    - ปิดไฟล์ใน Excel ก่อนประมวลผล
    - ตรวจสอบสิทธิ์การเข้าถึงไฟล์
 
@@ -142,9 +153,10 @@ INSTALL_DENSO888.bat
    - ใช้ admin/admin123 สำหรับ default login
 
 ### **Logs Location:**
+
 ```
 logs/denso888.log - Application logs
-auth.db - Authentication database  
+auth.db - Authentication database
 denso888_settings.json - User settings
 ```
 
