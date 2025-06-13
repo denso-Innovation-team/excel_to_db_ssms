@@ -1,55 +1,36 @@
 @echo off
-title DENSO888 - Excel to SQL Management System
+title DENSO888 - Quick Start
 echo.
-echo ========================================
-echo  🏭 DENSO888 - Excel to SQL
-echo  by เฮียตอมจัดหั้ย!!!
-echo ========================================
+echo 🏭 DENSO888 - Excel to SQL Management System
+echo    by เฮียตอมจัดหั้ย!!!
 echo.
 
-REM Check if Python is installed
+:: Check Python
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Python not found! Please install Python 3.8+
-    echo Download from: https://www.python.org/downloads/
+    echo ❌ Python not found! Install Python 3.8+ from python.org
     pause
     exit /b 1
 )
 
-REM Check if virtual environment exists
-if not exist .venv (
-    echo 📦 Creating virtual environment...
-    python -m venv .venv
-    if errorlevel 1 (
-        echo ❌ Failed to create virtual environment
-        pause
-        exit /b 1
-    )
-)
-
-REM Activate virtual environment
-echo 🔄 Activating virtual environment...
-call .venv\Scripts\activate.bat
-
-REM Install/upgrade dependencies
-echo 📥 Installing dependencies...
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+:: Install dependencies if needed
+echo 📦 Checking dependencies...
+python -c "import pandas, sqlalchemy, openpyxl" 2>nul
 if errorlevel 1 (
-    echo ❌ Failed to install dependencies
-    pause
-    exit /b 1
+    echo 📥 Installing dependencies...
+    pip install pandas sqlalchemy pyodbc openpyxl python-dotenv tqdm
 )
 
-REM Run application
-echo.
+:: Create logs directory
+if not exist logs mkdir logs
+
+:: Run application
 echo 🚀 Starting DENSO888...
 echo.
 python main.py
 
 if errorlevel 1 (
     echo.
-    echo ❌ Application encountered an error
-    echo Check logs/denso888.log for details
+    echo ❌ Error occurred. Check logs/denso888.log
     pause
 )

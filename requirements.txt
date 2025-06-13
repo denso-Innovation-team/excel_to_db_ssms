@@ -1,21 +1,21 @@
-# DENSO888 - Minimal Production Dependencies
+# DENSO888 Essential Dependencies
 
 # Core Data Processing
 pandas>=2.0.0
 sqlalchemy>=2.0.0
 pyodbc>=4.0.39
 
-# Excel Processing  
+# Excel Processing
 openpyxl>=3.1.0
 
-# Configuration
+# Configuration (Optional)
 python-dotenv>=1.0.0
 
 # Progress Display
 tqdm>=4.65.0
 
-# Build Tool
+# Build Tool (Development Only)
 pyinstaller>=5.10.0
 
-# Optional Development
+# Development Tools (Optional)
 pytest>=7.0.0

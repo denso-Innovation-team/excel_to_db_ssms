@@ -23,6 +23,8 @@ try:
     from core.mock_generator import MockDataTemplates
     from utils.logger import setup_gui_logger
     from utils.settings_manager import SettingsManager
+
+    # Import fixed in cleanup
 except ImportError as e:
     print(f"Import error: {e}")
 
