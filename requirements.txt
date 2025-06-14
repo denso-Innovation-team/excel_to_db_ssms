@@ -4,3 +4,11 @@ sqlalchemy>=2.0.0
 openpyxl>=3.1.0
 pyodbc>=4.0.39
 python-dotenv>=1.0.0
+
+# Build Dependencies
+pyinstaller>=5.0.0
+setuptools>=65.0.0
+
+# Optional Dependencies
+psutil>=5.9.0
+pillow>=9.0.0

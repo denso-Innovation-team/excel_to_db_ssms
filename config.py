@@ -1,5 +1,6 @@
 """
 config.py - DENSO888 Configuration
+Created by: Thammaphon Chittasuwanna (SDM) | Innovation Department
 """
 
 import os
@@ -25,9 +26,6 @@ class Config:
     # Processing
     BATCH_SIZE: int = 1000
     MAX_WORKERS: int = 4
-    
-    def get_sqlite_url(self) -> str:
-        return f"sqlite:///{self.SQLITE_FILE}"
 
 # Global config
 config = Config()

@@ -1,0 +1,21 @@
+{
+  "theme": "denso",
+  "language": "th",
+  "window": {
+    "width": 1200,
+    "height": 800,
+    "resizable": true,
+    "center": true
+  },
+  "tabs": [
+    {"id": "import", "title": "📊 Import Excel"},
+    {"id": "mock", "title": "🎲 Mock Data"},
+    {"id": "database", "title": "🗄️ Database"},
+    {"id": "logs", "title": "📝 Logs"}
+  ],
+  "features": {
+    "mock_data": true,
+    "advanced_types": true,
+    "auto_backup": true
+  }
+}
