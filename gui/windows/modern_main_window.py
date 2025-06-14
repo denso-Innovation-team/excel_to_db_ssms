@@ -16,7 +16,7 @@ from ..components.modern_widgets import (
     ModernCard,
     ModernToggleSwitch,
 )
-from ..components.splash_screen import DENSOSplashScreen
+from ..components.splash_screen import show_splash_screen
 
 
 class ModernDENSO888MainWindow:
@@ -42,7 +42,7 @@ class ModernDENSO888MainWindow:
         self.status_bar = None
 
         # Show splash screen first
-        self._show_splash_screen()
+        self._initialize_main_window()
 
     def _get_default_config(self):
         """Get default configuration"""
@@ -57,7 +57,7 @@ class ModernDENSO888MainWindow:
 
     def _show_splash_screen(self):
         """Show splash screen before main window"""
-        splash = DENSOSplashScreen(callback=self._initialize_main_window)
+        show_splash_screen(callback=self._initialize_main_window)
 
     def _initialize_main_window(self):
         """Initialize main application window after splash"""
@@ -484,8 +484,9 @@ class ModernDENSO888MainWindow:
 
     def _clear_main_content(self):
         """Clear main content area"""
-        for widget in self.main_content.winfo_children():
-            widget.destroy()
+        if self.main_content is not None:
+            for widget in self.main_content.winfo_children():
+                widget.destroy()
 
     def _highlight_nav_button(self, active_button):
         """Highlight active navigation button"""

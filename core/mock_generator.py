@@ -1173,15 +1173,3 @@ class MockDataTemplates:
             raise ValueError(f"Unknown template: {template_name}")
 
         return templates[template_name]
-        """Get template information with metadata"""
-        templates = MockDataTemplates.get_template_list()
-        for template in templates:
-            if template["name"] == template_name:
-                return {
-                    "name": template["name"],
-                    "description": template["description"],
-                    "default_rows": template["default_rows"],
-                    "estimated_columns": template["estimated_columns"],
-                    "features": template["features"],
-                    "use_cases": template["use_cases"],
-                }

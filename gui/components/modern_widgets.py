@@ -38,7 +38,7 @@ class AnimatedButton:
             "secondary": {"bg": "#6C757D", "fg": "white", "hover_bg": "#545B62"},
             "success": {"bg": "#28A745", "fg": "white", "hover_bg": "#34CE57"},
             "danger": {"bg": "#DC3545", "fg": "white", "hover_bg": "#E4606D"},
-            "outline": {"bg": "transparent", "fg": "#DC0003", "hover_bg": "#DC0003"},
+            "outline": {"bg": "white", "fg": "#DC0003", "hover_bg": "#DC0003"},
         }
 
         self.sizes = {

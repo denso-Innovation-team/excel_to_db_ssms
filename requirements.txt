@@ -1,18 +1,25 @@
-# DENSO888 Essential Dependencies - Fixed
+# DENSO888 Modern Edition - Optimized Dependencies
 
-# Core Data Processing  
-pandas>=2.0.0
-sqlalchemy>=2.0.0
+# Core Data Processing (Essential)
+pandas>=2.0.0,<2.2.0
+sqlalchemy>=2.0.0,<2.1.0
 pyodbc>=4.0.39
 
-# Excel Processing
-openpyxl>=3.1.0
+# Excel Processing (Essential)
+openpyxl>=3.1.0,<3.2.0
 
-# Configuration
+# Configuration (Essential)
 python-dotenv>=1.0.0
 
-# Progress Display
-tqdm>=4.65.0
+# UI Framework (Essential) 
+# tkinter is built into Python
 
-# Build Tool (Development Only)
-pyinstaller>=5.10.0
+# Optional - Development Tools
+# pytest>=7.0.0  # Uncomment for testing
+# black>=23.0.0  # Uncomment for code formatting
+# flake8>=6.0.0  # Uncomment for linting
+
+# Optional - Advanced Features
+# pillow>=10.0.0  # Uncomment for image processing
+# matplotlib>=3.7.0  # Uncomment for charts
+# plotly>=5.15.0  # Uncomment for interactive charts
