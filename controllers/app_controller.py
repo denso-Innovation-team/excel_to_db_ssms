@@ -9,6 +9,47 @@ from pathlib import Path
 
 from models.app_config import AppConfig
 from models.database_config import DatabaseConfig
+from admin.user_tracker import UserActivityTracker
+
+
+class AppController:
+    def __init__(self, config):
+        # ... existing code ...
+        self.activity_tracker = UserActivityTracker()
+
+    def select_file(self, file_path: str) -> bool:
+        """Track file selection"""
+        result = super().select_file(file_path)
+        if result:
+            self.activity_tracker.log_activity(
+                "file_selected",
+                {"file_path": file_path, "file_size": Path(file_path).stat().st_size},
+            )
+        return result
+
+    def connect_database(self) -> bool:
+        """Track database connection"""
+        result = super().connect_database()
+        self.activity_tracker.log_activity(
+            "database_connected", {"db_type": self.db_config.db_type, "success": result}
+        )
+        return result
+
+    def generate_mock_data(
+        self, template: str, count: int, table_name: str = None
+    ) -> bool:
+        """Track mock data generation"""
+        result = super().generate_mock_data(template, count, table_name)
+        self.activity_tracker.log_activity(
+            "mock_data_generated",
+            {
+                "template": template,
+                "count": count,
+                "table_name": table_name,
+                "success": result,
+            },
+        )
+        return result
 
 
 # Mock classes for core components (since we don't have them yet)
