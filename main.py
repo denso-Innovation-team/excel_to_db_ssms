@@ -7,6 +7,11 @@ import sys
 import os
 import traceback
 from pathlib import Path
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning)
+
+os.environ["PYTHONHASHSEED"] = "0"
 
 # Add project root to Python path
 project_root = Path(__file__).parent

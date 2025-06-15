@@ -1,8 +1,7 @@
-"""
-gui/themes/__init__.py
-Themes Package
-"""
+try:
+    from .gaming_theme import gaming_theme, GamingTheme
 
-from .gaming_theme import GamingTheme
-
-__all__ = ["GamingTheme"]
+    __all__ = ["gaming_theme", "GamingTheme"]
+except ImportError as e:
+    print(f"Warning: Could not import gaming theme: {e}")
+    __all__ = []

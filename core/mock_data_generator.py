@@ -646,6 +646,39 @@ class MockDataGenerator:
         self._log_generation("generate_financial", "financial", len(financial))
         return financial
 
+    def generate_custom_data(
+        self, template: Dict[str, Any], count: int
+    ) -> List[Dict[str, Any]]:
+        """Generate custom data based on template"""
+        data = []
+
+        for i in range(count):
+            record = {}
+            for field, config in template.items():
+                if config["type"] == "integer":
+                    record[field] = random.randint(config["min"], config["max"])
+                elif config["type"] == "string":
+                    if config["pattern"] == "name":
+                        record[field] = random.choice(
+                            self.english_first_names + self.thai_first_names
+                        )
+                    else:
+                        record[field] = f"Generated_{field}_{i}"
+                elif config["type"] == "float":
+                    value = random.uniform(config["min"], config["max"])
+                    record[field] = round(value, config.get("decimals", 2))
+                elif config["type"] == "boolean":
+                    record[field] = random.random() < config.get(
+                        "true_probability", 0.5
+                    )
+                elif config["type"] == "choice":
+                    record[field] = random.choice(config["choices"])
+
+            data.append(record)
+
+        self._log_generation("generate_custom_data", "custom", len(data))
+        return data
+
     def get_available_templates(self) -> List[Dict[str, Any]]:
         """Get available mock data templates"""
         return [

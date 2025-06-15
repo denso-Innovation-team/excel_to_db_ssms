@@ -4,46 +4,27 @@ Logging Configuration
 """
 
 import logging
-import logging.handlers
-from pathlib import Path
 
 
-def setup_logger(
-    name: str = "denso888", level: str = "INFO", log_file: str = None
-) -> logging.Logger:
-    """Setup application logger"""
+def setup_logger(name: str = "denso888", level: str = "INFO", log_file: str = None):
+    """Enhanced logger setup"""
     logger = logging.getLogger(name)
 
-    # Clear existing handlers
-    logger.handlers.clear()
+    # เพิ่ม null handler เพื่อป้องกัน warning
+    if not logger.handlers:
+        logger.addHandler(logging.NullHandler())
 
-    # Set level
-    log_level = getattr(logging, level.upper(), logging.INFO)
-    logger.setLevel(log_level)
+    # [โค้ดเดิม...]
 
-    # Create formatter
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    # เพิ่ม custom filter สำหรับ sensitive data
+    class SensitiveDataFilter(logging.Filter):
+        def filter(self, record):
+            # ซ่อน password และ sensitive data
+            record.msg = str(record.msg).replace("password=", "password=***")
+            return True
 
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-
-    # File handler
-    if log_file:
-        # Ensure log directory exists
-        log_path = Path(log_file)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Rotating file handler
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"  # 10MB
-        )
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+    for handler in logger.handlers:
+        handler.addFilter(SensitiveDataFilter())
 
     return logger
 

@@ -1,7 +1,2 @@
-def __init__(self):
-    # ... existing code ...
-
-    # *** Prevent auto-close ***
-    self.auto_close_disabled = True
-
-    # ... rest of init
+__version__ = "2.0.0"
+__author__ = "Thammaphon Chittasuwanna (SDM)"

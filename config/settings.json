@@ -1,8 +1,11 @@
 {
   "app_name": "DENSO888",
   "version": "2.0.0",
-  "theme": "modern",
+  "theme": "gaming",
   "language": "th",
   "window_width": 1400,
-  "window_height": 900
+  "window_height": 900,
+  "auto_save": true,
+  "notifications": true,
+  "debug_mode": false
 }
