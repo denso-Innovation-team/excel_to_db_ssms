@@ -1,6 +1,6 @@
 """
 core/database_manager.py
-Working Database Manager with Real Implementation
+Working Database Manager with Real Implementation - Fixed Version
 """
 
 import sqlite3
@@ -73,7 +73,14 @@ class DatabaseManager:
     def _connect_sqlserver(self) -> Tuple[bool, str]:
         """Connect to SQL Server database"""
         try:
-            import pyodbc
+            # Try to import pyodbc
+            try:
+                import pyodbc
+            except ImportError:
+                return (
+                    False,
+                    "pyodbc module not installed. Install with: pip install pyodbc",
+                )
 
             server = self.config.get("server", "")
             database = self.config.get("database", "")

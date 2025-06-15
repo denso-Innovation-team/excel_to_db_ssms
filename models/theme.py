@@ -53,23 +53,29 @@ class Colors:
 
 @dataclass
 class Fonts:
-    """Font configurations"""
+    """Font configurations - Fixed structure"""
 
-    # Gaming fonts
-    heading_xl: tuple = ("Orbitron", 24, "bold")
-    heading_lg: tuple = ("Orbitron", 18, "bold")
-    heading_md: tuple = ("Orbitron", 14, "bold")
-    heading_sm: tuple = ("Orbitron", 12, "bold")
+    def __post_init__(self):
+        """Initialize font dictionaries"""
+        # Gaming fonts
+        self.heading_xl = ("Orbitron", 24, "bold")
+        self.heading_lg = ("Orbitron", 18, "bold")
+        self.heading_md = ("Orbitron", 14, "bold")
+        self.heading_sm = ("Orbitron", 12, "bold")
 
-    # Body fonts
-    body_lg: tuple = ("Segoe UI", 14)
-    body_md: tuple = ("Segoe UI", 11)
-    body_sm: tuple = ("Segoe UI", 10)
-    caption: tuple = ("Segoe UI", 9)
+        # Body fonts
+        self.body_lg = ("Segoe UI", 14)
+        self.body_md = ("Segoe UI", 11)
+        self.body_sm = ("Segoe UI", 10)
+        self.caption = ("Segoe UI", 9)
 
-    # Monospace for code/data
-    code: tuple = ("Consolas", 10)
-    code_sm: tuple = ("Consolas", 9)
+        # Monospace for code/data
+        self.code = ("Consolas", 10)
+        self.code_sm = ("Consolas", 9)
+
+    def __getitem__(self, key):
+        """Allow dictionary-style access"""
+        return getattr(self, key, ("Segoe UI", 10))
 
 
 class ThemeManager:

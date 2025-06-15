@@ -1,26 +1,21 @@
 """
 gui/main_window.py
-Enhanced Main Window with Gaming UI and Real Functionality
-พัฒนาจากไฟล์เดิม เพิ่มความน่าเล่นแบบเกม
+DENSO888 Gaming Edition Main Window - Fixed Version
 """
 
 import tkinter as tk
-from tkinter import messagebox, filedialog
+from tkinter import messagebox
 import threading
 import traceback
-import os
 from typing import Dict, Any, Optional
-from pathlib import Path
 
-# Import core components
+# Core imports
 from models.app_config import AppConfig
 from models.user_preferences import UserPreferences
 from controllers.app_controller import AppController
 
-# Import gaming theme
-from gui.themes.gaming_theme import gaming_theme, GamingAnimations
-
-# Import existing pages (ใช้ไฟล์เดิม)
+# UI imports
+from gui.themes.gaming_theme import gaming_theme
 
 
 class DENSO888GamingEdition:
@@ -85,14 +80,6 @@ class DENSO888GamingEdition:
         # Configure main layout
         self.root.grid_rowconfigure(1, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
-
-        # Try to set window icon
-        try:
-            icon_path = Path("assets/icons/denso888.ico")
-            if icon_path.exists():
-                self.root.iconbitmap(str(icon_path))
-        except:
-            pass
 
     def _setup_gaming_components(self):
         """Setup gaming-style UI components"""
@@ -171,12 +158,12 @@ class DENSO888GamingEdition:
                 "badge": None,
             },
             {
-                "id": "admin",
-                "title": "Control Panel",
-                "description": "Admin Dashboard",
-                "icon": "🛡️",
+                "id": "logs",
+                "title": "System Logs",
+                "description": "Activity Monitor",
+                "icon": "📝",
                 "color": gaming_theme.colors.gold,
-                "badge": "admin",
+                "badge": None,
             },
         ]
 
@@ -200,8 +187,6 @@ class DENSO888GamingEdition:
             height=35,
             relief="flat",
             bd=0,
-            highlightbackground=gaming_theme.colors.border_glow,
-            highlightthickness=1,
         )
         self.status_bar.grid(row=2, column=0, columnspan=2, sticky="ew")
         self.status_bar.grid_propagate(False)
@@ -248,56 +233,42 @@ class DENSO888GamingEdition:
     def _initialize_pages(self):
         """Initialize all application pages with gaming enhancements"""
         try:
-            # Enhanced Dashboard with gaming elements
-            self.pages["dashboard"] = GamingDashboardPage(
-                self.content_area, self.controller, gaming_theme
-            )
-
-            # Enhanced Import page
-            self.pages["import"] = GamingImportPage(
-                self.content_area, self.controller, gaming_theme
-            )
-
-            # Enhanced Database page
-            self.pages["database"] = GamingDatabasePage(
-                self.content_area, self.controller, gaming_theme
-            )
-
-            # Enhanced Mock data page
-            self.pages["mock"] = GamingMockPage(
-                self.content_area, self.controller, gaming_theme
-            )
-
-            # Admin page with gaming theme
-            self.pages["admin"] = GamingAdminPage(
-                self.content_area, self.controller, gaming_theme
-            )
+            # Create simple gaming pages
+            self.pages = {
+                "dashboard": self._create_simple_gaming_page(
+                    "dashboard", "🎯 Command Center", "Your mission control interface"
+                ),
+                "import": self._create_simple_gaming_page(
+                    "import", "📊 Data Injection", "Transform Excel into database power"
+                ),
+                "database": self._create_simple_gaming_page(
+                    "database", "🗄️ Data Vault", "Configure your data fortress"
+                ),
+                "mock": self._create_simple_gaming_page(
+                    "mock", "🎲 Data Forge", "Generate unlimited test data"
+                ),
+                "logs": self._create_simple_gaming_page(
+                    "logs", "📝 System Logs", "Monitor all system activities"
+                ),
+            }
 
             print("✅ All gaming pages initialized successfully")
 
         except Exception as e:
             print(f"❌ Error creating pages: {e}")
             print(f"🔍 Stack trace: {traceback.format_exc()}")
-            # Create fallback pages
-            self._create_fallback_pages()
 
-    def _create_fallback_pages(self):
-        """Create fallback pages if main pages fail"""
-        for page_id in ["dashboard", "import", "database", "mock", "admin"]:
-            if page_id not in self.pages:
-                self.pages[page_id] = self._create_simple_gaming_page(page_id)
-
-    def _create_simple_gaming_page(self, page_id: str):
-        """Create simple gaming-style fallback page"""
+    def _create_simple_gaming_page(self, page_id: str, title: str, description: str):
+        """Create simple gaming-style page"""
 
         class SimpleGamingPage:
-            def __init__(self, parent, page_id, theme):
+            def __init__(self, parent, page_id, title, description, theme):
                 self.parent = parent
                 self.page_id = page_id
                 self.theme = theme
 
                 self.main_frame = gaming_theme.components.create_gaming_card(
-                    parent, f"🎮 {page_id.title()} Module", "Module under development"
+                    parent, title, description
                 )
 
                 # Content
@@ -305,9 +276,17 @@ class DENSO888GamingEdition:
                 content_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
                 # Icon
+                icons = {
+                    "dashboard": "🎯",
+                    "import": "📊",
+                    "database": "🗄️",
+                    "mock": "🎲",
+                    "logs": "📝",
+                }
+
                 icon_label = tk.Label(
                     content_frame,
-                    text="🚧",
+                    text=icons.get(page_id, "⚙️"),
                     font=("Segoe UI", 48),
                     bg=theme.colors.bg_card,
                     fg=theme.colors.neon_orange,
@@ -315,15 +294,64 @@ class DENSO888GamingEdition:
                 icon_label.pack(pady=20)
 
                 # Message
+                if page_id == "dashboard":
+                    message_text = "🎮 Welcome to DENSO888 Gaming Edition!\n\n• Database Status: Ready for connection\n• System: All components loaded\n• Mission: Transform your Excel data!"
+                elif page_id == "import":
+                    message_text = "📊 Excel Data Injection Portal\n\n• Select your Excel files\n• Configure import settings\n• Launch data transformation!"
+                elif page_id == "database":
+                    message_text = "🗄️ Database Vault Control\n\n• Configure SQLite or SQL Server\n• Test connections\n• Manage your data fortress!"
+                elif page_id == "mock":
+                    message_text = "🎲 Data Forge Laboratory\n\n• Generate employee records\n• Create sales data\n• Build inventory systems!"
+                else:
+                    message_text = f"{title}\n\nThis gaming module is ready for action!\nSelect your mission and begin!"
+
                 message_label = tk.Label(
                     content_frame,
-                    text=f"{page_id.title()} Module\n\nThis gaming module is under development.\nStay tuned for awesome features!",
-                    font=("Orbitron", 14),
+                    text=message_text,
+                    font=("Orbitron", 12),
                     bg=theme.colors.bg_card,
                     fg=theme.colors.text_primary,
                     justify="center",
                 )
                 message_label.pack()
+
+                # Action button
+                if page_id == "dashboard":
+                    action_text = "🚀 View System Status"
+                elif page_id == "import":
+                    action_text = "📁 Select Excel File"
+                elif page_id == "database":
+                    action_text = "🔗 Configure Database"
+                elif page_id == "mock":
+                    action_text = "🎲 Generate Data"
+                else:
+                    action_text = "⚡ Activate Module"
+
+                action_btn = gaming_theme.components.create_neon_button(
+                    content_frame,
+                    action_text,
+                    command=lambda: self._show_action_message(page_id),
+                    style="primary",
+                    size="large",
+                )
+                action_btn.pack(pady=20)
+
+            def _show_action_message(self, page_id):
+                """Show action message"""
+                messages = {
+                    "dashboard": "🎯 Dashboard ready! Connect database to unlock full features.",
+                    "import": "📊 Import feature ready! Connect database first to begin data injection.",
+                    "database": "🗄️ Database configuration ready! Choose SQLite for quick start.",
+                    "mock": "🎲 Mock data forge ready! Connect database to start generating data.",
+                    "logs": "📝 System logs active! Real-time monitoring enabled.",
+                }
+
+                gaming_theme.components.create_notification_toast(
+                    self.parent.root if hasattr(self.parent, "root") else self.parent,
+                    messages.get(page_id, f"{page_id.title()} module activated!"),
+                    "info",
+                    3000,
+                )
 
             def show(self):
                 self.main_frame.pack(fill="both", expand=True)
@@ -334,7 +362,7 @@ class DENSO888GamingEdition:
             def refresh(self):
                 pass
 
-        return SimpleGamingPage(self.content_area, page_id, gaming_theme)
+        return SimpleGamingPage(self, page_id, title, description, gaming_theme)
 
     def _setup_event_handlers(self):
         """Setup gaming event handlers"""
@@ -361,14 +389,6 @@ class DENSO888GamingEdition:
             # Show welcome notification
             gaming_theme.components.create_notification_toast(
                 self.root, "🎮 DENSO888 Gaming Edition Activated! 🚀", "success", 3000
-            )
-
-            # Pulse the main window
-            GamingAnimations.pulse_effect(
-                self.main_container,
-                gaming_theme.colors.bg_primary,
-                gaming_theme.colors.bg_secondary,
-                1.0,
             )
 
         # Delay animation slightly for better effect
@@ -401,7 +421,7 @@ class DENSO888GamingEdition:
                     "import": "DATA INJECTION",
                     "database": "DATA VAULT",
                     "mock": "DATA FORGE",
-                    "admin": "CONTROL PANEL",
+                    "logs": "SYSTEM LOGS",
                 }
 
                 page_name = page_names.get(page_id, page_id.upper())
@@ -433,13 +453,6 @@ class DENSO888GamingEdition:
             self._show_gaming_notification(
                 "🗄️ Database connection established!", "success"
             )
-
-            # Show achievement for first connection
-            if not hasattr(self, "_first_connection_achievement"):
-                self._first_connection_achievement = True
-                self._show_achievement(
-                    "Database Master", "Successfully connected to database!", "bronze"
-                )
         else:
             self.connection_label.configure(
                 text="🔴 OFFLINE", fg=gaming_theme.colors.text_error
@@ -449,29 +462,10 @@ class DENSO888GamingEdition:
         """Handle operation completion with gaming celebration"""
         operation = data.get("operation", "Operation")
         success = data.get("success", False)
-        operation_data = data.get("data", {})
 
         if success:
-            # Show success notification with gaming flair
-            if operation == "excel_import":
-                rows = operation_data.get("rows_imported", 0)
-                self._show_gaming_notification(
-                    f"🚀 Data injection complete! {rows:,} records uploaded", "success"
-                )
-            elif operation == "mock_generation":
-                rows = operation_data.get("rows_generated", 0)
-                template = operation_data.get("template", "data")
-                self._show_gaming_notification(
-                    f"🎲 Data forge successful! {rows:,} {template} records created",
-                    "success",
-                )
-
-            # Add pulse effect to status bar
-            GamingAnimations.pulse_effect(
-                self.status_bar,
-                gaming_theme.colors.bg_secondary,
-                gaming_theme.colors.neon_green,
-                0.5,
+            self._show_gaming_notification(
+                f"🚀 {operation} completed successfully!", "success"
             )
         else:
             self._show_gaming_notification(f"❌ {operation} failed!", "error")
@@ -503,10 +497,9 @@ class DENSO888GamingEdition:
         self.achievement_label.configure(text=f"🏆 {self.achievement_count}")
 
         # Show achievement popup
-        self._show_achievement(title, description, achievement_type)
-
-        # Celebration effects
-        self._celebration_effects()
+        gaming_theme.create_achievement_popup(
+            self.root, title, description, achievement_type
+        )
 
     def _on_progress_update(self, progress_data: Dict[str, Any]):
         """Handle progress updates with gaming UI"""
@@ -516,58 +509,15 @@ class DENSO888GamingEdition:
         # Update status bar with progress
         self._update_status(f"⚡ {status} ({progress:.0f}%)")
 
-        # Show progress in the current page if it supports it
-        if self.current_page and self.current_page in self.pages:
-            page = self.pages[self.current_page]
-            if hasattr(page, "update_progress"):
-                page.update_progress(progress, status)
-
     def _show_gaming_notification(self, message: str, notification_type: str = "info"):
         """Show gaming-style notification"""
         gaming_theme.components.create_notification_toast(
             self.root, message, notification_type, 3000
         )
 
-    def _show_achievement(
-        self, title: str, description: str, achievement_type: str = "gold"
-    ):
-        """Show achievement popup with celebration"""
-        gaming_theme.create_achievement_popup(
-            self.root, title, description, achievement_type
-        )
-
-    def _celebration_effects(self):
-        """Show celebration effects for achievements"""
-        # Pulse the achievement counter
-        GamingAnimations.pulse_effect(
-            self.achievement_label,
-            gaming_theme.colors.gold,
-            gaming_theme.colors.text_primary,
-            1.0,
-        )
-
-        # Flash the main window border
-        original_highlight = self.root.cget("highlightbackground")
-        self.root.configure(
-            highlightbackground=gaming_theme.colors.gold, highlightthickness=3
-        )
-        self.root.after(
-            1000,
-            lambda: self.root.configure(
-                highlightbackground=original_highlight, highlightthickness=0
-            ),
-        )
-
     def _update_status(self, message: str):
         """Update status bar with gaming style"""
         self.status_label.configure(text=message)
-
-        # Animate status update
-        GamingAnimations.glow_on_hover(
-            self.status_label,
-            gaming_theme.colors.bg_secondary,
-            gaming_theme.colors.bg_elevated,
-        )
 
     def _show_page(self, page_id: str):
         """Programmatically show a page"""
@@ -578,7 +528,6 @@ class DENSO888GamingEdition:
         if self.current_page and self.current_page in self.pages:
             page = self.pages[self.current_page]
             if hasattr(page, "refresh"):
-                # Show refresh notification
                 self._show_gaming_notification("🔄 Refreshing data...", "info")
                 threading.Thread(target=page.refresh, daemon=True).start()
 
@@ -618,9 +567,6 @@ class DENSO888GamingEdition:
     def _final_shutdown(self):
         """Final shutdown procedure"""
         try:
-            # Save preferences
-            # self.preferences.save_to_file()
-
             self.root.quit()
             self.root.destroy()
         except:
@@ -647,757 +593,3 @@ class DENSO888GamingEdition:
             messagebox.showerror("Runtime Error", f"Gaming edition error:\n\n{str(e)}")
         finally:
             print("✅ Gaming edition shutdown completed")
-
-
-# Enhanced Gaming Pages
-class GamingDashboardPage:
-    """Enhanced dashboard with gaming elements"""
-
-    def __init__(self, parent, controller, theme):
-        self.parent = parent
-        self.controller = controller
-        self.theme = theme
-
-        self.main_frame = None
-        self._create_gaming_dashboard()
-
-    def _create_gaming_dashboard(self):
-        """Create gaming-style dashboard"""
-        self.main_frame = tk.Frame(self.parent, bg=self.theme.colors.bg_primary)
-
-        # Create scrollable content
-        canvas = tk.Canvas(
-            self.main_frame, bg=self.theme.colors.bg_primary, highlightthickness=0
-        )
-        scrollbar = tk.Scrollbar(
-            self.main_frame, orient="vertical", command=canvas.yview
-        )
-        self.scrollable_frame = tk.Frame(canvas, bg=self.theme.colors.bg_primary)
-
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.bind(
-            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        # Gaming welcome section
-        self._create_welcome_section()
-
-        # Gaming stats section
-        self._create_gaming_stats()
-
-        # Quick action section with gaming style
-        self._create_gaming_actions()
-
-        # System status with gaming effects
-        self._create_gaming_system_status()
-
-    def _create_welcome_section(self):
-        """Create gaming welcome section"""
-        welcome_card = self.theme.components.create_gaming_card(
-            self.scrollable_frame,
-            "🎯 MISSION CONTROL CENTER",
-            "Ready for data operations",
-        )
-        welcome_card.pack(fill="x", padx=20, pady=20)
-
-        # Welcome content
-        content_frame = tk.Frame(welcome_card, bg=self.theme.colors.bg_card)
-        content_frame.pack(fill="x", padx=20, pady=20)
-
-        # Animated welcome message
-        welcome_text = tk.Label(
-            content_frame,
-            text="🚀 DENSO888 GAMING EDITION READY FOR ACTION!",
-            font=("Orbitron", 16, "bold"),
-            bg=self.theme.colors.bg_card,
-            fg=self.theme.colors.primary,
-        )
-        welcome_text.pack(pady=10)
-
-        mission_text = tk.Label(
-            content_frame,
-            text="Your mission: Transform Excel data into powerful databases!\nLevel up your data management skills!",
-            font=("Segoe UI", 12),
-            bg=self.theme.colors.bg_card,
-            fg=self.theme.colors.text_secondary,
-            justify="center",
-        )
-        mission_text.pack()
-
-        # Add pulse effect to welcome text
-        GamingAnimations.pulse_effect(
-            welcome_text, self.theme.colors.primary, self.theme.colors.primary_glow, 2.0
-        )
-
-    def _create_gaming_stats(self):
-        """Create gaming-style statistics"""
-        stats_card = self.theme.components.create_gaming_card(
-            self.scrollable_frame,
-            "📊 PLAYER STATISTICS",
-            "Your data management achievements",
-        )
-        stats_card.pack(fill="x", padx=20, pady=(0, 20))
-
-        # Stats grid
-        stats_frame = tk.Frame(stats_card, bg=self.theme.colors.bg_card)
-        stats_frame.pack(fill="x", padx=20, pady=20)
-
-        # Create stat displays
-        stats = [
-            ("🗄️", "Databases", "0", self.theme.colors.neon_blue),
-            ("📊", "Records", "0", self.theme.colors.neon_green),
-            ("🎲", "Mock Data", "0", self.theme.colors.neon_orange),
-            ("🏆", "Achievements", "0", self.theme.colors.gold),
-        ]
-
-        self.stat_widgets = {}
-        for i, (icon, label, value, color) in enumerate(stats):
-            stat_widget = self.theme.components.create_stat_display(
-                stats_frame, icon, label, value, color
-            )
-            stat_widget.grid(row=0, column=i, padx=10, pady=5, sticky="ew")
-            self.stat_widgets[label.lower()] = stat_widget
-
-        # Configure grid
-        for i in range(4):
-            stats_frame.grid_columnconfigure(i, weight=1)
-
-    def _create_gaming_actions(self):
-        """Create gaming-style quick actions"""
-        actions_card = self.theme.components.create_gaming_card(
-            self.scrollable_frame, "⚡ QUICK ACTIONS", "Launch your data missions"
-        )
-        actions_card.pack(fill="x", padx=20, pady=(0, 20))
-
-        # Actions grid
-        actions_frame = tk.Frame(actions_card, bg=self.theme.colors.bg_card)
-        actions_frame.pack(fill="x", padx=20, pady=20)
-
-        # Quick action buttons
-        actions = [
-            ("📊", "Data Injection", "Import Excel files", "success"),
-            ("🗄️", "Data Vault", "Configure database", "info"),
-            ("🎲", "Data Forge", "Generate mock data", "warning"),
-            ("🛡️", "Control Panel", "Admin dashboard", "primary"),
-        ]
-
-        for i, (icon, title, desc, style) in enumerate(actions):
-            row = i // 2
-            col = i % 2
-
-            action_frame = tk.Frame(actions_frame, bg=self.theme.colors.bg_card)
-            action_frame.grid(row=row, column=col, padx=10, pady=10, sticky="ew")
-
-            action_btn = self.theme.components.create_neon_button(
-                action_frame, f"{icon} {title}", style=style, size="large"
-            )
-            action_btn.pack(fill="x")
-
-            desc_label = tk.Label(
-                action_frame,
-                text=desc,
-                font=("Segoe UI", 10),
-                bg=self.theme.colors.bg_card,
-                fg=self.theme.colors.text_secondary,
-            )
-            desc_label.pack(pady=(5, 0))
-
-        # Configure grid
-        actions_frame.grid_columnconfigure(0, weight=1)
-        actions_frame.grid_columnconfigure(1, weight=1)
-
-    def _create_gaming_system_status(self):
-        """Create gaming system status"""
-        status_card = self.theme.components.create_gaming_card(
-            self.scrollable_frame, "🖥️ SYSTEM STATUS", "Real-time system monitoring"
-        )
-        status_card.pack(fill="x", padx=20, pady=(0, 20))
-
-        # Status content
-        status_frame = tk.Frame(status_card, bg=self.theme.colors.bg_card)
-        status_frame.pack(fill="x", padx=20, pady=20)
-
-        # System metrics
-        metrics = [
-            ("Database", "🔴 OFFLINE", self.theme.colors.text_error),
-            ("Memory", "💾 Normal", self.theme.colors.neon_green),
-            ("Performance", "⚡ Optimal", self.theme.colors.neon_blue),
-            ("Security", "🛡️ Protected", self.theme.colors.gold),
-        ]
-
-        self.status_widgets = {}
-        for i, (label, status, color) in enumerate(metrics):
-            metric_frame = tk.Frame(status_frame, bg=self.theme.colors.bg_card)
-            metric_frame.grid(row=i // 2, column=i % 2, padx=20, pady=10, sticky="ew")
-
-            label_widget = tk.Label(
-                metric_frame,
-                text=f"{label}:",
-                font=("Orbitron", 11, "bold"),
-                bg=self.theme.colors.bg_card,
-                fg=self.theme.colors.text_primary,
-                anchor="w",
-            )
-            label_widget.pack(anchor="w")
-
-            status_widget = tk.Label(
-                metric_frame,
-                text=status,
-                font=("Orbitron", 10),
-                bg=self.theme.colors.bg_card,
-                fg=color,
-                anchor="w",
-            )
-            status_widget.pack(anchor="w")
-
-            self.status_widgets[label.lower()] = status_widget
-
-        # Configure grid
-        status_frame.grid_columnconfigure(0, weight=1)
-        status_frame.grid_columnconfigure(1, weight=1)
-
-    def refresh(self):
-        """Refresh dashboard data"""
-        try:
-            # Update database status
-            db_status = self.controller.get_database_status()
-            if db_status.get("connected"):
-                self.status_widgets["database"].configure(
-                    text="🟢 ONLINE", fg=self.theme.colors.neon_green
-                )
-
-                # Update stats
-                stats = db_status
-                if "total_tables" in stats:
-                    self.stat_widgets["databases"].value_label.configure(
-                        text=str(stats["total_tables"])
-                    )
-                if "total_records" in stats:
-                    self.stat_widgets["records"].value_label.configure(
-                        text=f"{stats['total_records']:,}"
-                    )
-            else:
-                self.status_widgets["database"].configure(
-                    text="🔴 OFFLINE", fg=self.theme.colors.text_error
-                )
-        except Exception as e:
-            print(f"Error refreshing dashboard: {e}")
-
-    def show(self):
-        """Show dashboard"""
-        self.main_frame.pack(fill="both", expand=True)
-
-    def hide(self):
-        """Hide dashboard"""
-        self.main_frame.pack_forget()
-
-
-# Import and Database pages with gaming enhancements would follow similar patterns
-class GamingImportPage:
-    """Gaming-enhanced import page"""
-
-    def __init__(self, parent, controller, theme):
-        self.parent = parent
-        self.controller = controller
-        self.theme = theme
-        self.main_frame = None
-        self._create_import_page()
-
-    def _create_import_page(self):
-        """Create gaming import page"""
-        self.main_frame = tk.Frame(self.parent, bg=self.theme.colors.bg_primary)
-
-        # Coming soon placeholder with gaming style
-        placeholder_card = self.theme.components.create_gaming_card(
-            self.main_frame,
-            "📊 DATA INJECTION MODULE",
-            "Advanced Excel to Database portal",
-        )
-        placeholder_card.pack(expand=True, padx=50, pady=50)
-
-        content_frame = tk.Frame(placeholder_card, bg=self.theme.colors.bg_card)
-        content_frame.pack(fill="both", expand=True, padx=30, pady=30)
-
-        # Browse file button
-        browse_btn = self.theme.components.create_neon_button(
-            content_frame,
-            "📁 SELECT EXCEL FILE",
-            command=self._browse_file,
-            style="primary",
-            size="large",
-        )
-        browse_btn.pack(pady=20)
-
-        # Progress bar placeholder
-        self.progress_bar = self.theme.components.create_progress_bar(content_frame)
-        self.progress_bar["container"].pack(pady=20)
-        self.progress_bar["container"].pack_forget()  # Initially hidden
-
-    def _browse_file(self):
-        """Browse for Excel file"""
-        filename = filedialog.askopenfilename(
-            title="Select Excel File for Data Injection",
-            filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")],
-        )
-
-        if filename:
-            # Show progress
-            self.progress_bar["container"].pack(pady=20)
-
-            # Simulate file processing
-            def process_file():
-                for i in range(0, 101, 10):
-                    self.progress_bar["update"](i)
-                    self.parent.after(100)
-
-                # Show success
-                self.theme.components.create_notification_toast(
-                    self.parent,
-                    f"📊 File analyzed: {os.path.basename(filename)}",
-                    "success",
-                )
-
-            import threading
-
-            threading.Thread(target=process_file, daemon=True).start()
-
-    def update_progress(self, value: float, status: str):
-        """Update progress bar"""
-        if hasattr(self, "progress_bar"):
-            self.progress_bar["update"](value)
-
-    def show(self):
-        self.main_frame.pack(fill="both", expand=True)
-
-    def hide(self):
-        self.main_frame.pack_forget()
-
-    def refresh(self):
-        pass
-
-
-class GamingDatabasePage:
-    """Gaming-enhanced database page"""
-
-    def __init__(self, parent, controller, theme):
-        self.parent = parent
-        self.controller = controller
-        self.theme = theme
-        self.main_frame = None
-        self._create_database_page()
-
-    def _create_database_page(self):
-        """Create gaming database page"""
-        self.main_frame = tk.Frame(self.parent, bg=self.theme.colors.bg_primary)
-
-        # Database vault interface
-        vault_card = self.theme.components.create_gaming_card(
-            self.main_frame, "🗄️ DATA VAULT CONTROL", "Secure database management system"
-        )
-        vault_card.pack(fill="both", expand=True, padx=20, pady=20)
-
-        content_frame = tk.Frame(vault_card, bg=self.theme.colors.bg_card)
-        content_frame.pack(fill="both", expand=True, padx=20, pady=20)
-
-        # Database type selection with gaming style
-        type_frame = tk.Frame(content_frame, bg=self.theme.colors.bg_card)
-        type_frame.pack(fill="x", pady=20)
-
-        tk.Label(
-            type_frame,
-            text="🎯 SELECT VAULT TYPE:",
-            font=("Orbitron", 14, "bold"),
-            bg=self.theme.colors.bg_card,
-            fg=self.theme.colors.neon_blue,
-        ).pack(anchor="w", pady=(0, 10))
-
-        # SQLite option
-        sqlite_btn = self.theme.components.create_neon_button(
-            type_frame,
-            "💾 LOCAL VAULT (SQLite)",
-            command=self._select_sqlite,
-            style="success",
-            size="large",
-        )
-        sqlite_btn.pack(fill="x", pady=5)
-
-        # SQL Server option
-        sqlserver_btn = self.theme.components.create_neon_button(
-            type_frame,
-            "🖥️ ENTERPRISE VAULT (SQL Server)",
-            command=self._select_sqlserver,
-            style="info",
-            size="large",
-        )
-        sqlserver_btn.pack(fill="x", pady=5)
-
-        # Connection test
-        test_btn = self.theme.components.create_neon_button(
-            content_frame,
-            "🔍 TEST VAULT CONNECTION",
-            command=self._test_connection,
-            style="warning",
-            size="large",
-        )
-        test_btn.pack(pady=30)
-
-        # Status display
-        self.vault_status = tk.Label(
-            content_frame,
-            text="🔴 VAULT OFFLINE",
-            font=("Orbitron", 16, "bold"),
-            bg=self.theme.colors.bg_card,
-            fg=self.theme.colors.text_error,
-        )
-        self.vault_status.pack(pady=20)
-
-    def _select_sqlite(self):
-        """Select SQLite database"""
-        self.controller.update_database_config({"db_type": "sqlite"})
-        self.theme.components.create_notification_toast(
-            self.parent, "💾 Local vault selected", "info"
-        )
-
-    def _select_sqlserver(self):
-        """Select SQL Server database"""
-        self.controller.update_database_config({"db_type": "sqlserver"})
-        self.theme.components.create_notification_toast(
-            self.parent, "🖥️ Enterprise vault selected", "info"
-        )
-
-    def _test_connection(self):
-        """Test database connection"""
-        success = self.controller.test_database_connection()
-        if success:
-            self.vault_status.configure(
-                text="🟢 VAULT ONLINE", fg=self.theme.colors.neon_green
-            )
-
-            # Connect automatically after successful test
-            self.controller.connect_database()
-        else:
-            self.vault_status.configure(
-                text="🔴 VAULT CONNECTION FAILED", fg=self.theme.colors.text_error
-            )
-
-    def show(self):
-        self.main_frame.pack(fill="both", expand=True)
-
-    def hide(self):
-        self.main_frame.pack_forget()
-
-    def refresh(self):
-        # Update vault status
-        db_status = self.controller.get_database_status()
-        if db_status.get("connected"):
-            self.vault_status.configure(
-                text="🟢 VAULT ONLINE", fg=self.theme.colors.neon_green
-            )
-        else:
-            self.vault_status.configure(
-                text="🔴 VAULT OFFLINE", fg=self.theme.colors.text_error
-            )
-
-
-class GamingMockPage:
-    """Gaming-enhanced mock data page"""
-
-    def __init__(self, parent, controller, theme):
-        self.parent = parent
-        self.controller = controller
-        self.theme = theme
-        self.main_frame = None
-        self._create_mock_page()
-
-    def _create_mock_page(self):
-        """Create gaming mock data page"""
-        self.main_frame = tk.Frame(self.parent, bg=self.theme.colors.bg_primary)
-
-        # Data forge interface
-        forge_card = self.theme.components.create_gaming_card(
-            self.main_frame, "🎲 DATA FORGE LABORATORY", "Generate unlimited test data"
-        )
-        forge_card.pack(fill="both", expand=True, padx=20, pady=20)
-
-        content_frame = tk.Frame(forge_card, bg=self.theme.colors.bg_card)
-        content_frame.pack(fill="both", expand=True, padx=20, pady=20)
-
-        # Template selection
-        template_frame = tk.Frame(content_frame, bg=self.theme.colors.bg_card)
-        template_frame.pack(fill="x", pady=20)
-
-        tk.Label(
-            template_frame,
-            text="🧬 SELECT DATA TEMPLATE:",
-            font=("Orbitron", 14, "bold"),
-            bg=self.theme.colors.bg_card,
-            fg=self.theme.colors.neon_orange,
-        ).pack(anchor="w", pady=(0, 10))
-
-        # Template buttons
-        templates = [
-            ("👥", "EMPLOYEE MATRIX", "employees"),
-            ("💰", "SALES NEXUS", "sales"),
-            ("📦", "INVENTORY GRID", "inventory"),
-            ("💳", "FINANCIAL CORE", "financial"),
-        ]
-
-        self.selected_template = tk.StringVar(value="employees")
-
-        for icon, name, template_id in templates:
-            btn = self.theme.components.create_neon_button(
-                template_frame,
-                f"{icon} {name}",
-                command=lambda t=template_id: self._select_template(t),
-                style="primary",
-                size="medium",
-            )
-            btn.pack(fill="x", pady=2)
-
-        # Quantity selector
-        quantity_frame = tk.Frame(content_frame, bg=self.theme.colors.bg_card)
-        quantity_frame.pack(fill="x", pady=20)
-
-        tk.Label(
-            quantity_frame,
-            text="⚡ GENERATION POWER:",
-            font=("Orbitron", 14, "bold"),
-            bg=self.theme.colors.bg_card,
-            fg=self.theme.colors.neon_green,
-        ).pack(anchor="w", pady=(0, 10))
-
-        # Quick quantity buttons
-        quantities = [1000, 5000, 10000, 50000]
-        self.selected_quantity = tk.IntVar(value=1000)
-
-        qty_buttons_frame = tk.Frame(quantity_frame, bg=self.theme.colors.bg_card)
-        qty_buttons_frame.pack(fill="x")
-
-        for qty in quantities:
-            btn = self.theme.components.create_neon_button(
-                qty_buttons_frame,
-                f"{qty:,}",
-                command=lambda q=qty: self._select_quantity(q),
-                style="success",
-                size="small",
-            )
-            btn.pack(side="left", padx=5, expand=True, fill="x")
-
-        # Generate button
-        generate_btn = self.theme.components.create_neon_button(
-            content_frame,
-            "🚀 ACTIVATE DATA FORGE",
-            command=self._generate_data,
-            style="warning",
-            size="large",
-        )
-        generate_btn.pack(pady=30)
-
-        # Progress bar
-        self.progress_bar = self.theme.components.create_progress_bar(
-            content_frame, 400
-        )
-        self.progress_bar["container"].pack(pady=10)
-        self.progress_bar["container"].pack_forget()  # Initially hidden
-
-    def _select_template(self, template_id: str):
-        """Select data template"""
-        self.selected_template.set(template_id)
-        self.theme.components.create_notification_toast(
-            self.parent, f"🧬 {template_id.title()} template selected", "info"
-        )
-
-    def _select_quantity(self, quantity: int):
-        """Select generation quantity"""
-        self.selected_quantity.set(quantity)
-        self.theme.components.create_notification_toast(
-            self.parent, f"⚡ Generation power set to {quantity:,}", "info"
-        )
-
-    def _generate_data(self):
-        """Generate mock data"""
-        if not self.controller.is_connected:
-            self.theme.components.create_notification_toast(
-                self.parent, "🔴 Vault must be online before forging data!", "error"
-            )
-            return
-
-        template = self.selected_template.get()
-        quantity = self.selected_quantity.get()
-
-        # Show progress
-        self.progress_bar["container"].pack(pady=10)
-
-        # Start generation
-        def generate():
-            success = self.controller.generate_mock_data(template, quantity)
-            if success:
-                # Show database file location
-                db_path = self.controller.get_database_file_path()
-                if db_path:
-                    self.theme.components.create_notification_toast(
-                        self.parent,
-                        f"📁 Data forged successfully! File: {os.path.basename(db_path)}",
-                        "success",
-                        5000,
-                    )
-
-        import threading
-
-        threading.Thread(target=generate, daemon=True).start()
-
-    def update_progress(self, value: float, status: str):
-        """Update progress bar"""
-        if hasattr(self, "progress_bar"):
-            self.progress_bar["update"](value)
-
-    def show(self):
-        self.main_frame.pack(fill="both", expand=True)
-
-    def hide(self):
-        self.main_frame.pack_forget()
-
-    def refresh(self):
-        pass
-
-
-class GamingAdminPage:
-    """Gaming-enhanced admin page"""
-
-    def __init__(self, parent, controller, theme):
-        self.parent = parent
-        self.controller = controller
-        self.theme = theme
-        self.main_frame = None
-        self._create_admin_page()
-
-    def _create_admin_page(self):
-        """Create gaming admin page"""
-        self.main_frame = tk.Frame(self.parent, bg=self.theme.colors.bg_primary)
-
-        # Control panel interface
-        control_card = self.theme.components.create_gaming_card(
-            self.main_frame, "🛡️ ADMIN CONTROL PANEL", "Master control interface"
-        )
-        control_card.pack(fill="both", expand=True, padx=20, pady=20)
-
-        content_frame = tk.Frame(control_card, bg=self.theme.colors.bg_card)
-        content_frame.pack(fill="both", expand=True, padx=20, pady=20)
-
-        # Admin stats
-        stats_frame = tk.Frame(content_frame, bg=self.theme.colors.bg_card)
-        stats_frame.pack(fill="x", pady=20)
-
-        tk.Label(
-            stats_frame,
-            text="📊 SYSTEM ANALYTICS:",
-            font=("Orbitron", 14, "bold"),
-            bg=self.theme.colors.bg_card,
-            fg=self.theme.colors.gold,
-        ).pack(anchor="w", pady=(0, 10))
-
-        # Activity stats
-        try:
-            from admin.user_tracker import UserActivityTracker
-
-            tracker = UserActivityTracker()
-            activities = tracker.get_activities(100)
-            ip_summary = tracker.get_ip_summary()
-
-            stats_text = f"""
-🔍 Total Activities: {len(activities)}
-🌐 Unique IP Addresses: {len(ip_summary)}
-⚡ System Status: OPERATIONAL
-🛡️ Security Level: MAXIMUM
-            """
-        except:
-            stats_text = """
-🔍 Total Activities: Loading...
-🌐 Unique IP Addresses: Loading...  
-⚡ System Status: OPERATIONAL
-🛡️ Security Level: MAXIMUM
-            """
-
-        stats_label = tk.Label(
-            stats_frame,
-            text=stats_text.strip(),
-            font=("Consolas", 11),
-            bg=self.theme.colors.bg_card,
-            fg=self.theme.colors.text_primary,
-            justify="left",
-            anchor="w",
-        )
-        stats_label.pack(anchor="w")
-
-        # Admin controls
-        controls_frame = tk.Frame(content_frame, bg=self.theme.colors.bg_card)
-        controls_frame.pack(fill="x", pady=20)
-
-        tk.Label(
-            controls_frame,
-            text="🎛️ MASTER CONTROLS:",
-            font=("Orbitron", 14, "bold"),
-            bg=self.theme.colors.bg_card,
-            fg=self.theme.colors.neon_blue,
-        ).pack(anchor="w", pady=(0, 10))
-
-        # Control buttons
-        controls = [
-            ("📊", "EXPORT LOGS", self._export_logs),
-            ("🔄", "REFRESH DATA", self._refresh_data),
-            ("💾", "BACKUP SYSTEM", self._backup_system),
-            ("🗑️", "CLEAR CACHE", self._clear_cache),
-        ]
-
-        for icon, label, command in controls:
-            btn = self.theme.components.create_neon_button(
-                controls_frame,
-                f"{icon} {label}",
-                command=command,
-                style="primary",
-                size="medium",
-            )
-            btn.pack(fill="x", pady=2)
-
-    def _export_logs(self):
-        """Export system logs"""
-        self.theme.components.create_notification_toast(
-            self.parent, "📊 Exporting system logs...", "info"
-        )
-
-    def _refresh_data(self):
-        """Refresh system data"""
-        self.theme.components.create_notification_toast(
-            self.parent, "🔄 System data refreshed", "success"
-        )
-
-    def _backup_system(self):
-        """Backup system"""
-        success = self.controller.backup_database()
-        if success:
-            self.theme.components.create_notification_toast(
-                self.parent, "💾 System backup completed successfully", "success"
-            )
-        else:
-            self.theme.components.create_notification_toast(
-                self.parent, "❌ Backup failed - vault must be online", "error"
-            )
-
-    def _clear_cache(self):
-        """Clear system cache"""
-        self.theme.components.create_notification_toast(
-            self.parent, "🗑️ System cache cleared", "success"
-        )
-
-    def show(self):
-        self.main_frame.pack(fill="both", expand=True)
-
-    def hide(self):
-        self.main_frame.pack_forget()
-
-    def refresh(self):
-        pass
