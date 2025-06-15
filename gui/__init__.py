@@ -1,8 +1,7 @@
-"""
-gui/__init__.py
-GUI Package
-"""
+def __init__(self):
+    # ... existing code ...
 
-from .main_window import DENSO888GamingEdition
+    # *** Prevent auto-close ***
+    self.auto_close_disabled = True
 
-__all__ = ["DENSO888GamingEdition"]
+    # ... rest of init

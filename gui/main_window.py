@@ -1,6 +1,7 @@
 """
 gui/main_window.py
-DENSO888 Gaming Edition Main Window - Complete Fixed Version
+DENSO888 Gaming Edition Main Window - COMPLETE FIXED VERSION
+เฮียตอมจัดหั้ย!!! - ไฟล์สมบูรณ์แบบ 🎮🚀
 """
 
 import tkinter as tk
@@ -172,119 +173,117 @@ class DENSO888GamingEdition:
         )
         self.sidebar.grid(row=0, column=0, sticky="nsew")
 
-
-def _create_content_area(self):
-    """Create main content area"""
-    self.content_area = tk.Frame(self.main_container, bg=gaming_theme.colors.bg_primary)
-    self.content_area.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
-
-    # *** เพิ่ม Test Panel ***
-    test_panel = tk.Frame(self.content_area, bg="#FF0066", height=60)
-    test_panel.pack(fill="x", pady=(0, 10))
-    test_panel.pack_propagate(False)
-
-    # Test buttons
-    test_label = tk.Label(
-        test_panel,
-        text="🧪 NOTIFICATION TEST PANEL",
-        font=("Orbitron", 12, "bold"),
-        bg="#FF0066",
-        fg="white",
-    )
-    test_label.pack(side="left", padx=10, pady=15)
-
-    # Test Success Notification
-    success_btn = tk.Button(
-        test_panel,
-        text="✅ Test Success",
-        font=("Arial", 10, "bold"),
-        bg="#00FF88",
-        fg="black",
-        relief="flat",
-        command=self._test_success_notification,
-        cursor="hand2",
-    )
-    success_btn.pack(side="left", padx=5, pady=15)
-
-    # Test Error Notification
-    error_btn = tk.Button(
-        test_panel,
-        text="❌ Test Error",
-        font=("Arial", 10, "bold"),
-        bg="#FF4466",
-        fg="white",
-        relief="flat",
-        command=self._test_error_notification,
-        cursor="hand2",
-    )
-    error_btn.pack(side="left", padx=5, pady=15)
-
-    # Test Info Notification
-    info_btn = tk.Button(
-        test_panel,
-        text="ℹ️ Test Info",
-        font=("Arial", 10, "bold"),
-        bg="#00FFFF",
-        fg="black",
-        relief="flat",
-        command=self._test_info_notification,
-        cursor="hand2",
-    )
-    info_btn.pack(side="left", padx=5, pady=15)
-
-
-# เพิ่ม test methods เหล่านี้ใน class DENSO888GamingEdition:
-
-
-def _test_success_notification(self):
-    """Test success notification"""
-    print("🧪 Testing SUCCESS notification...")
-    try:
-        result = gaming_theme.components.create_notification_toast(
-            self.root, "🎯 Success notification test! เฮียตอมเทสต์สำเร็จ!", "success", 5000
+    def _create_content_area(self):
+        """Create main content area"""
+        self.content_area = tk.Frame(
+            self.main_container, bg=gaming_theme.colors.bg_primary
         )
-        print(f"✅ Success notification created: {result}")
-    except Exception as e:
-        print(f"❌ Error in success notification: {e}")
-        import traceback
+        self.content_area.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
-        traceback.print_exc()
+        # *** Test Panel for Notifications ***
+        test_panel = tk.Frame(self.content_area, bg="#FF0066", height=60)
+        test_panel.pack(fill="x", pady=(0, 10))
+        test_panel.pack_propagate(False)
 
-
-def _test_error_notification(self):
-    """Test error notification"""
-    print("🧪 Testing ERROR notification...")
-    try:
-        result = gaming_theme.components.create_notification_toast(
-            self.root,
-            "💥 Error notification test! Something went wrong!",
-            "error",
-            5000,
+        # Test buttons
+        test_label = tk.Label(
+            test_panel,
+            text="🧪 NOTIFICATION TEST PANEL",
+            font=("Orbitron", 12, "bold"),
+            bg="#FF0066",
+            fg="white",
         )
-        print(f"✅ Error notification created: {result}")
-    except Exception as e:
-        print(f"❌ Error in error notification: {e}")
-        import traceback
+        test_label.pack(side="left", padx=10, pady=15)
 
-        traceback.print_exc()
-
-
-def _test_info_notification(self):
-    """Test info notification"""
-    print("🧪 Testing INFO notification...")
-    try:
-        result = gaming_theme.components.create_notification_toast(
-            self.root,
-            "📘 Info notification test! This is an information message.",
-            "info",
-            5000,
+        # Test Success Notification
+        success_btn = tk.Button(
+            test_panel,
+            text="✅ Test Success",
+            font=("Arial", 10, "bold"),
+            bg="#00FF88",
+            fg="black",
+            relief="flat",
+            command=self._test_success_notification,
+            cursor="hand2",
         )
-        print(f"✅ Info notification created: {result}")
-    except Exception as e:
-        print(f"❌ Error in info notification: {e}")
-        import traceback
+        success_btn.pack(side="left", padx=5, pady=15)
 
-        traceback.print_exc()
+        # Test Error Notification
+        error_btn = tk.Button(
+            test_panel,
+            text="❌ Test Error",
+            font=("Arial", 10, "bold"),
+            bg="#FF4466",
+            fg="white",
+            relief="flat",
+            command=self._test_error_notification,
+            cursor="hand2",
+        )
+        error_btn.pack(side="left", padx=5, pady=15)
+
+        # Test Info Notification
+        info_btn = tk.Button(
+            test_panel,
+            text="ℹ️ Test Info",
+            font=("Arial", 10, "bold"),
+            bg="#00FFFF",
+            fg="black",
+            relief="flat",
+            command=self._test_info_notification,
+            cursor="hand2",
+        )
+        info_btn.pack(side="left", padx=5, pady=15)
+
+    def _test_success_notification(self):
+        """Test success notification"""
+        print("🧪 Testing SUCCESS notification...")
+        try:
+            result = gaming_theme.components.create_notification_toast(
+                self.root,
+                "🎯 Success notification test! เฮียตอมเทสต์สำเร็จ!",
+                "success",
+                5000,
+            )
+            print(f"✅ Success notification created: {result}")
+        except Exception as e:
+            print(f"❌ Error in success notification: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+    def _test_error_notification(self):
+        """Test error notification"""
+        print("🧪 Testing ERROR notification...")
+        try:
+            result = gaming_theme.components.create_notification_toast(
+                self.root,
+                "💥 Error notification test! Something went wrong!",
+                "error",
+                5000,
+            )
+            print(f"✅ Error notification created: {result}")
+        except Exception as e:
+            print(f"❌ Error in error notification: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+    def _test_info_notification(self):
+        """Test info notification"""
+        print("🧪 Testing INFO notification...")
+        try:
+            result = gaming_theme.components.create_notification_toast(
+                self.root,
+                "📘 Info notification test! This is an information message.",
+                "info",
+                5000,
+            )
+            print(f"✅ Info notification created: {result}")
+        except Exception as e:
+            print(f"❌ Error in info notification: {e}")
+            import traceback
+
+            traceback.print_exc()
 
     def _create_gaming_status_bar(self):
         """Create gaming-style status bar"""
@@ -686,9 +685,38 @@ def _test_info_notification(self):
         return LogsPage(self)
 
     def _setup_event_handlers(self):
-        """Setup gaming event handlers"""
-        # Window events
-        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+        """Setup gaming event handlers - FINAL FIX"""
+
+        def prevent_accidental_close():
+            """Prevent accidental window close"""
+            from tkinter import messagebox
+
+            result = messagebox.askyesnocancel(
+                "🎮 DENSO888 Gaming Edition",
+                "ต้องการทำอะไร?\n\n"
+                + "🔴 YES = ปิดแอป\n"
+                + "🟢 NO = ใช้งานต่อ\n"
+                + "🟡 CANCEL = ย่อหน้าต่าง",
+                icon="question",
+            )
+
+            if result is True:
+                # ปิดจริง
+                if self.controller:
+                    self.controller.shutdown()
+                self.root.quit()
+                self.root.destroy()
+            elif result is False:
+                # ใช้งานต่อ - ไม่ทำอะไร
+                self._show_gaming_notification(
+                    "🎮 Welcome back! เฮียตอมกลับมาแล้ว!", "success"
+                )
+            else:
+                # ย่อหน้าต่าง
+                self.root.iconify()
+
+        # Apply protection
+        self.root.protocol("WM_DELETE_WINDOW", prevent_accidental_close)
 
         # Controller events with gaming enhancements
         self.controller.subscribe("db_status_changed", self._on_db_status_changed)
@@ -699,28 +727,54 @@ def _test_info_notification(self):
         self.controller.subscribe("progress_update", self._on_progress_update)
 
         # Gaming keyboard shortcuts
-        self.root.bind("<Control-q>", lambda e: self._on_closing())
+        self.root.bind("<Control-q>", lambda e: prevent_accidental_close())
         self.root.bind("<F5>", lambda e: self._refresh_current_page())
         self.root.bind("<F11>", lambda e: self._toggle_fullscreen())
 
     def _show_welcome_animation(self):
-        """Show welcome animation on startup"""
+        """Show welcome animation on startup - SAFE VERSION"""
 
-        def animate():
-            # Show welcome notification
-            gaming_theme.components.create_notification_toast(
-                self.root, "🎮 DENSO888 Gaming Edition Activated! 🚀", "success", 3000
-            )
+        def safe_animate():
+            try:
+                print("🎮 Starting welcome animation...")
+                self.root.deiconify()  # Force visible
+                self.root.lift()
+                # Show page first (more important than notification)
+                self._show_page("dashboard")
 
-        # Delay animation slightly for better effect
-        self.root.after(500, animate)
+                # Then show notification (less critical)
+                try:
+                    gaming_theme.components.create_notification_toast(
+                        self.root,
+                        "🎮 DENSO888 Gaming Edition Activated! 🚀",
+                        "success",
+                        3000,
+                    )
+                except Exception as e:
+                    print(f"⚠️ Notification warning (non-critical): {e}")
+
+                print("✅ Welcome animation completed")
+
+            except Exception as e:
+                print(f"❌ Animation error: {e}")
+                # Still show dashboard even if animation fails
+                try:
+                    self._show_page("dashboard")
+                except:
+                    pass
+
+        # Schedule animation safely
+        self.root.after(200, safe_animate)
 
         # Show default page
         self._show_page("dashboard")
 
+    # *** CRITICAL: Missing _on_page_changed method implementation ***
     def _on_page_changed(self, page_id: str):
-        """Handle page navigation with gaming effects"""
+        """Handle page navigation with gaming effects - FIXED METHOD"""
         try:
+            print(f"🎯 Switching to page: {page_id}")
+
             # Hide current page
             if self.current_page and self.current_page in self.pages:
                 self.pages[self.current_page].hide()
@@ -831,10 +885,24 @@ def _test_info_notification(self):
         self._update_status(f"⚡ {status} ({progress:.0f}%)")
 
     def _show_gaming_notification(self, message: str, notification_type: str = "info"):
-        """Show gaming-style notification"""
-        gaming_theme.components.create_notification_toast(
-            self.root, message, notification_type, 3000
-        )
+        """Show gaming-style notification - THREAD-SAFE VERSION"""
+
+        def safe_notification():
+            try:
+                # Only create notification if window still exists
+                if self.root.winfo_exists():
+                    gaming_theme.components.create_notification_toast(
+                        self.root, message, notification_type, 3000
+                    )
+            except Exception as e:
+                print(f"⚠️ Notification warning (non-critical): {e}")
+
+        # Schedule in main thread
+        try:
+            self.root.after_idle(safe_notification)
+        except:
+            # If even scheduling fails, just ignore notification
+            print(f"⚠️ Could not schedule notification: {message}")
 
     def _update_status(self, message: str):
         """Update status bar with gaming style"""
@@ -866,54 +934,92 @@ def _test_info_notification(self):
             self._show_gaming_notification("🖥️ Fullscreen not supported", "warning")
 
     def _on_closing(self):
-        """Handle application closing with gaming farewell"""
+        """Handle application closing with gaming farewell - FIXED VERSION"""
         try:
-            if messagebox.askyesno(
+            result = messagebox.askyesno(
                 "Exit Gaming Edition",
                 "🎮 Exit DENSO888 Gaming Edition?\n\nAll your progress will be saved!",
-            ):
-                # Show farewell message
-                self._show_gaming_notification(
-                    "👋 Thanks for playing! See you next time!", "info"
-                )
+            )
+
+            if result:
+                print("👋 User confirmed exit")
+
+                # Show farewell message (แต่ไม่รอ)
+                try:
+                    gaming_theme.components.create_notification_toast(
+                        self.root,
+                        "👋 Thanks for playing! See you next time!",
+                        "info",
+                        1000,
+                    )
+                except:
+                    pass  # ไม่สำคัญถ้า notification ไม่แสดง
 
                 # Cleanup
                 if self.controller:
                     self.controller.shutdown()
 
-                # Brief delay for farewell message
-                self.root.after(1000, self._final_shutdown)
+                # *** CRITICAL: ปิดแอปทันที ***
+                self._final_shutdown()
+            else:
+                print("🎮 User cancelled exit")
 
         except Exception as e:
             print(f"Error during shutdown: {e}")
-            self.root.quit()
+            # *** Force quit ถ้ามีปัญหา ***
+            self._final_shutdown()
 
     def _final_shutdown(self):
-        """Final shutdown procedure"""
+        """Final shutdown procedure - SAFE VERSION"""
+        print("🔄 Executing final shutdown...")
         try:
-            self.root.quit()
-            self.root.destroy()
-        except Exception:
-            pass
+            # Try graceful shutdown first
+            if hasattr(self, "root") and self.root:
+                self.root.quit()
+                self.root.destroy()
+        except Exception as e:
+            print(f"⚠️ Graceful shutdown failed: {e}")
+            # Force exit
+            import sys
+
+            sys.exit(0)
 
     def run(self):
-        """Start the gaming edition application"""
+        """Start the gaming edition application - FORCE VISIBLE VERSION"""
         try:
             print("🎮 Starting DENSO888 Gaming Edition...")
 
-            # Show startup notification
-            self._show_gaming_notification(
-                "🚀 DENSO888 Gaming Edition loaded successfully!", "success"
-            )
+            def auto_restore():
+                if self.root.state() == "iconic":
+                    self.root.deiconify()
+                    print("🔄 Auto-restored window")
+                self.root.after(500, auto_restore)
 
-            # Start main loop
+            # *** CRITICAL: Force window to stay visible ***
+            self.root.deiconify()
+            self.root.lift()
+            self.root.focus_force()
+            self.root.attributes("-topmost", True)
+
+            # Force update
+            self.root.update_idletasks()
+            self.root.update()
+
+            # Remove topmost after showing
+            self.root.after(2000, lambda: self.root.attributes("-topmost", False))
+
+            # *** ADD: Prevent auto-minimize ***
+            def keep_visible():
+                if self.root.state() == "iconic":  # If minimized
+                    self.root.deiconify()  # Show again
+                    print("🔄 Window was minimized, restoring...")
+                self.root.after(1000, keep_visible)  # Check every second
+
+            self.root.after(1000, keep_visible)
+
+            print("🎯 Window forced visible, starting mainloop...")
             self.root.mainloop()
 
-        except KeyboardInterrupt:
-            print("\n⚠️ Application interrupted by user")
         except Exception as e:
-            print(f"❌ Application runtime error: {e}")
-            print(f"🔍 Stack trace: {traceback.format_exc()}")
-            messagebox.showerror("Runtime Error", f"Gaming edition error:\n\n{str(e)}")
-        finally:
-            print("✅ Gaming edition shutdown completed")
+            print(f"❌ Error: {e}")
+            traceback.print_exc()

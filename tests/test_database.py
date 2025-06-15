@@ -6,6 +6,12 @@ Database Component Tests
 import unittest
 import sys
 import os
+import os
+from core.mock_data_generator import MockDataGenerator
+
+# === FIX 5: Fix tests/test_excel_handler.py imports ===
+# Update imports section in tests/test_excel_handler.py:
+
 
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
