@@ -1,0 +1,9 @@
+[
+  {
+    "timestamp": "2025-06-15T12:49:44.365358",
+    "ip_address": "192.168.1.42",
+    "action": "application_shutdown",
+    "details": {},
+    "user_agent": "DENSO888_Desktop"
+  }
+]

@@ -3,6 +3,6 @@ gui/__init__.py
 GUI Package
 """
 
-from .main_window import DENSO888MainWindow
+from .main_window import DENSO888GamingEdition
 
-__all__ = ["DENSO888MainWindow"]
+__all__ = ["DENSO888GamingEdition"]
