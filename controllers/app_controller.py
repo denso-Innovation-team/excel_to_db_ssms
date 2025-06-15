@@ -1,6 +1,6 @@
 """
 controllers/app_controller.py
-Fixed App Controller with Real Database and File Operations
+Fixed App Controller with Enhanced Error Handling
 """
 
 import logging
@@ -54,18 +54,15 @@ class AppController:
         try:
             # Initialize database config
             from models.database_config import DatabaseConfig
-
             self.db_config = DatabaseConfig()
 
             # Initialize Excel handler
             try:
                 from core.excel_handler import ExcelHandler
-
                 self.excel_handler = ExcelHandler()
             except ImportError:
                 # Fallback to simple Excel processor
                 from core.excel_processor import ExcelProcessor
-
                 self.excel_handler = ExcelProcessor()
 
             self.log("Application controller initialized successfully")
@@ -128,25 +125,20 @@ class AppController:
             self.log("Testing database connection...")
 
             # Create temporary manager for testing
-            test_manager = DatabaseManager(self.db_config.__dict__)
+            test_params = self.db_config.get_connection_params()
+            test_manager = DatabaseManager(test_params)
             success, message = test_manager.test_connection()
 
             if success:
                 self.log(f"✅ Database test successful: {message}")
-
-                # Track successful test
                 self.activity_tracker.log_activity(
                     "database_test_success",
                     {"db_type": self.db_config.db_type, "message": message},
                 )
-
-                # Close test connection
                 test_manager.close()
                 return True
             else:
                 self.log(f"❌ Database test failed: {message}", "ERROR")
-
-                # Track failed test
                 self.activity_tracker.log_activity(
                     "database_test_failed",
                     {"db_type": self.db_config.db_type, "error": message},
@@ -168,7 +160,8 @@ class AppController:
             self.log("Connecting to database...")
 
             # Create database manager
-            self.db_manager = DatabaseManager(self.db_config.__dict__)
+            connection_params = self.db_config.get_connection_params()
+            self.db_manager = DatabaseManager(connection_params)
             success, message = self.db_manager.connect()
 
             if success:
@@ -191,7 +184,6 @@ class AppController:
 
                 # Check for achievement
                 self._check_connection_achievement()
-
                 return True
             else:
                 self.is_connected = False
@@ -294,7 +286,6 @@ class AppController:
                         "columns": self.file_info.get("total_columns", 0),
                     },
                 )
-
                 return True
             else:
                 self.log(f"❌ File analysis failed: {self.file_info['error']}", "ERROR")
@@ -324,9 +315,7 @@ class AppController:
                     "total_columns": len(df.columns),
                     "columns": list(df.columns),
                     "sample_data": df.head(5),
-                    "modified_date": datetime.fromtimestamp(
-                        os.path.getmtime(file_path)
-                    ),
+                    "modified_date": datetime.fromtimestamp(os.path.getmtime(file_path)),
                 }
             else:
                 return {"error": "Unsupported file format"}
@@ -363,7 +352,6 @@ class AppController:
 
             # Read Excel file
             import pandas as pd
-
             df = pd.read_excel(self.current_file)
 
             # Convert to list of dictionaries
@@ -435,7 +423,6 @@ class AppController:
 
             # Check for achievements
             self._check_import_achievement(len(data))
-
             return True
 
         except Exception as e:
@@ -451,9 +438,7 @@ class AppController:
             return False
 
     # Mock Data Operations
-    def generate_mock_data(
-        self, template: str, count: int, table_name: str = None
-    ) -> bool:
+    def generate_mock_data(self, template: str, count: int, table_name: str = None) -> bool:
         """Generate mock data with progress tracking"""
         if not self.is_connected:
             self.emit_event("error_occurred", "Database not connected")
@@ -567,7 +552,6 @@ class AppController:
 
             # Check for achievements
             self._check_mock_data_achievement(count, template)
-
             return True
 
         except Exception as e:
@@ -583,74 +567,8 @@ class AppController:
             return False
 
     def get_available_templates(self) -> list:
-        """Get available mock data templates with enhanced info"""
-        return [
-            {
-                "name": "employees",
-                "title": "👥 Employee Records",
-                "description": "Realistic employee data with Thai/English names, departments, and salaries",
-                "fields": [
-                    "ID",
-                    "Name",
-                    "Email",
-                    "Department",
-                    "Position",
-                    "Salary",
-                    "Hire Date",
-                    "Status",
-                ],
-                "recommended_count": "1,000 - 50,000",
-                "color": "#3B82F6",
-            },
-            {
-                "name": "sales",
-                "title": "💰 Sales Transactions",
-                "description": "Sales data with products, customers, seasonal trends, and payment details",
-                "fields": [
-                    "Transaction ID",
-                    "Customer",
-                    "Product",
-                    "Quantity",
-                    "Price",
-                    "Total",
-                    "Date",
-                ],
-                "recommended_count": "5,000 - 100,000",
-                "color": "#10B981",
-            },
-            {
-                "name": "inventory",
-                "title": "📦 Inventory Items",
-                "description": "Product inventory with stock levels, suppliers, and warehouse locations",
-                "fields": [
-                    "Product ID",
-                    "Name",
-                    "Category",
-                    "Stock",
-                    "Price",
-                    "Supplier",
-                    "Location",
-                ],
-                "recommended_count": "500 - 10,000",
-                "color": "#F59E0B",
-            },
-            {
-                "name": "financial",
-                "title": "💳 Financial Records",
-                "description": "Financial transactions with accounts, approvals, and fiscal reporting",
-                "fields": [
-                    "Account",
-                    "Transaction",
-                    "Amount",
-                    "Type",
-                    "Date",
-                    "Reference",
-                    "Balance",
-                ],
-                "recommended_count": "1,000 - 25,000",
-                "color": "#8B5CF6",
-            },
-        ]
+        """Get available mock data templates"""
+        return self.mock_generator.get_available_templates()
 
     # Achievement System
     def _check_connection_achievement(self):
@@ -715,8 +633,6 @@ class AppController:
     def get_recent_logs(self, limit: int = 100) -> list:
         """Get recent application logs"""
         try:
-            # This would normally read from a log file
-            # For now, return some sample logs
             logs = [
                 {
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -745,7 +661,7 @@ class AppController:
                                 "module": "Database",
                             }
                         )
-                except:
+                except Exception:
                     pass
 
             return logs[-limit:]
@@ -765,8 +681,6 @@ class AppController:
 
             if success:
                 self.log(f"✅ Query executed successfully")
-
-                # Track query execution
                 self.activity_tracker.log_activity(
                     "custom_query_executed",
                     {
@@ -803,12 +717,9 @@ class AppController:
 
             if success:
                 self.log(f"✅ Database backup created: {backup_path}")
-
-                # Track backup
                 self.activity_tracker.log_activity(
                     "database_backup_created", {"backup_path": backup_path}
                 )
-
                 return True
             else:
                 self.log(f"❌ Backup failed: {message}", "ERROR")
@@ -834,7 +745,7 @@ class AppController:
                 "total_activities": len(activities),
                 "ip_summary": self.activity_tracker.get_ip_summary(),
             }
-        except:
+        except Exception:
             pass
 
         return stats

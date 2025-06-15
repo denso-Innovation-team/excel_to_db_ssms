@@ -1,5 +1,5 @@
 """
-main.py - DENSO888 Gaming Edition Entry Point
+main.py - DENSO888 Gaming Edition Entry Point - Fixed Version
 เฮียตอมจัดหั้ย!!! 🎮🚀
 """
 
@@ -56,6 +56,9 @@ def main():
         print("🚀 Loading DENSO888 Gaming Edition...")
         print()
 
+        # Create required directories
+        create_required_directories()
+
         # Import and start the gaming edition
         from gui.main_window import DENSO888GamingEdition
 
@@ -83,19 +86,19 @@ def main():
 
             app = DENSO888Simple()
             app.run()
-        except:
-            print("❌ Fallback version also failed")
+        except Exception as fallback_error:
+            print(f"❌ Fallback version also failed: {fallback_error}")
 
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         print(f"🔍 Error details: {traceback.format_exc()}")
         print("\n💡 Please report this error to the development team")
 
-        # Try fallback
+        # Try emergency fallback
         print("\n🔄 Attempting emergency fallback...")
         try:
             emergency_fallback()
-        except:
+        except Exception:
             print("❌ All systems failed")
 
 

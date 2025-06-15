@@ -1,6 +1,6 @@
 """
 core/mock_data_generator.py
-Enhanced Mock Data Generator - Fixed Version
+Fixed Mock Data Generator with Enhanced Error Handling
 """
 
 import random
@@ -9,12 +9,11 @@ from typing import List, Dict, Any
 
 
 class MockDataGenerator:
-    """Enhanced mock data generator with file path tracking"""
+    """Enhanced mock data generator with robust error handling"""
 
     def __init__(self):
-        """Initialize with enhanced Thai/English data sets"""
-
-        # Enhanced Thai names
+        """Initialize with Thai/English data sets"""
+        # Thai names
         self.thai_first_names = [
             "สมชาย",
             "วิชาย",
@@ -26,11 +25,6 @@ class MockDataGenerator:
             "เศรษฐา",
             "ธีระ",
             "นิรันดร์",
-            "ปัญญา",
-            "รัชต",
-            "วีระ",
-            "ชัยยา",
-            "อนันต์",
             "สมหญิง",
             "วิชุดา",
             "ประภา",
@@ -41,11 +35,6 @@ class MockDataGenerator:
             "เศรษฐี",
             "ธีรนุช",
             "นิรมล",
-            "ปัญจมา",
-            "รัชนี",
-            "วีรา",
-            "ชัยญา",
-            "อนันตา",
         ]
 
         self.thai_last_names = [
@@ -69,9 +58,6 @@ class MockDataGenerator:
             "สมบัติ",
             "ชาญวิทย์",
             "เฉลิมชัย",
-            "วิวัฒนา",
-            "ศิลปกร",
-            "เทพวรรณ",
         ]
 
         self.english_first_names = [
@@ -85,10 +71,6 @@ class MockDataGenerator:
             "Daniel",
             "Matthew",
             "Anthony",
-            "Mark",
-            "Donald",
-            "Steven",
-            "Paul",
             "Jane",
             "Sarah",
             "Lisa",
@@ -99,9 +81,6 @@ class MockDataGenerator:
             "Nicole",
             "Ashley",
             "Elizabeth",
-            "Michelle",
-            "Emily",
-            "Kimberly",
         ]
 
         self.english_last_names = [
@@ -216,7 +195,6 @@ class MockDataGenerator:
             "Hydraulic Pump",
             "Pneumatic Valve",
             "Motor Controller",
-            "Drive Belt",
         ]
 
         self.companies = [
@@ -247,104 +225,86 @@ class MockDataGenerator:
             "Rayong",
         ]
 
-        # File output tracking
-        self.last_generated_file = None
+        # Generation tracking
         self.generation_log = []
 
-    def _log_generation(
-        self, operation: str, template: str, count: int, file_path: str = None
-    ):
+    def _log_generation(self, operation: str, template: str, count: int):
         """Log data generation for tracking"""
         log_entry = {
             "timestamp": datetime.now(),
             "operation": operation,
             "template": template,
             "count": count,
-            "file_path": file_path,
             "status": "completed",
         }
         self.generation_log.append(log_entry)
-        self.last_generated_file = file_path
 
         # Keep only last 100 entries
         if len(self.generation_log) > 100:
             self.generation_log = self.generation_log[-100:]
 
-    def get_last_generated_info(self) -> Dict[str, Any]:
-        """Get information about the last generated data"""
-        if not self.generation_log:
-            return {"error": "No data generated yet"}
-
-        last_entry = self.generation_log[-1]
-        return {
-            "timestamp": last_entry["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
-            "template": last_entry["template"],
-            "count": last_entry["count"],
-            "file_path": last_entry["file_path"],
-            "operation": last_entry["operation"],
-        }
-
     def generate_employees(self, count: int = 1000) -> List[Dict[str, Any]]:
         """Generate realistic employee data"""
         employees = []
 
-        print(f"🎲 Generating {count:,} employee records...")
-
         for i in range(count):
-            # Determine if Thai or English name (70% Thai, 30% English)
-            is_thai = random.random() < 0.7
+            try:
+                # Determine if Thai or English name (70% Thai, 30% English)
+                is_thai = random.random() < 0.7
 
-            if is_thai:
-                first_name = random.choice(self.thai_first_names)
-                last_name = random.choice(self.thai_last_names)
-                email_name = self._romanize_thai_name(first_name, last_name)
-            else:
-                first_name = random.choice(self.english_first_names)
-                last_name = random.choice(self.english_last_names)
-                email_name = f"{first_name.lower()}.{last_name.lower()}"
+                if is_thai:
+                    first_name = random.choice(self.thai_first_names)
+                    last_name = random.choice(self.thai_last_names)
+                    email_name = self._romanize_thai_name(first_name, last_name)
+                else:
+                    first_name = random.choice(self.english_first_names)
+                    last_name = random.choice(self.english_last_names)
+                    email_name = f"{first_name.lower()}.{last_name.lower()}"
 
-            department = random.choice(self.departments)
-            position = random.choice(self.positions.get(department, ["Employee"]))
-            salary = self._calculate_salary(position, department)
-            hire_date = self._generate_hire_date()
-            years_service = (datetime.now() - hire_date).days / 365.25
+                department = random.choice(self.departments)
+                position = random.choice(self.positions.get(department, ["Employee"]))
+                salary = self._calculate_salary(position, department)
+                hire_date = self._generate_hire_date()
+                years_service = (datetime.now() - hire_date).days / 365.25
 
-            employee = {
-                "employee_id": f"EMP{i+1:06d}",
-                "first_name": first_name,
-                "last_name": last_name,
-                "full_name": f"{first_name} {last_name}",
-                "email": f"{email_name}@denso.com",
-                "department": department,
-                "position": position,
-                "salary": salary,
-                "hire_date": hire_date.strftime("%Y-%m-%d"),
-                "status": self._generate_employee_status(years_service),
-                "phone": self._generate_phone(),
-                "age": random.randint(22, 65),
-                "gender": random.choice(["Male", "Female"]),
-                "city": random.choice(self.cities),
-                "performance_rating": round(random.uniform(2.5, 5.0), 1),
-                "years_of_experience": max(
-                    0, int(years_service) + random.randint(-3, 5)
-                ),
-                "education": random.choice(
-                    ["High School", "Diploma", "Bachelor's", "Master's", "PhD"]
-                ),
-                "employee_type": random.choice(
-                    ["Full-time", "Part-time", "Contract", "Intern"]
-                ),
-                "manager_id": (
-                    f"EMP{random.randint(1, max(1, i//10)):06d}" if i > 0 else None
-                ),
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            }
+                employee = {
+                    "employee_id": f"EMP{i+1:06d}",
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "full_name": f"{first_name} {last_name}",
+                    "email": f"{email_name}@denso.com",
+                    "department": department,
+                    "position": position,
+                    "salary": salary,
+                    "hire_date": hire_date.strftime("%Y-%m-%d"),
+                    "status": self._generate_employee_status(years_service),
+                    "phone": self._generate_phone(),
+                    "age": random.randint(22, 65),
+                    "gender": random.choice(["Male", "Female"]),
+                    "city": random.choice(self.cities),
+                    "performance_rating": round(random.uniform(2.5, 5.0), 1),
+                    "years_of_experience": max(
+                        0, int(years_service) + random.randint(-3, 5)
+                    ),
+                    "education": random.choice(
+                        ["High School", "Diploma", "Bachelor's", "Master's", "PhD"]
+                    ),
+                    "employee_type": random.choice(
+                        ["Full-time", "Part-time", "Contract", "Intern"]
+                    ),
+                    "manager_id": (
+                        f"EMP{random.randint(1, max(1, i//10)):06d}" if i > 0 else None
+                    ),
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                }
 
-            employees.append(employee)
+                employees.append(employee)
 
-        self._log_generation("generate_employees", "employees", count)
-        print(f"✅ Generated {count:,} employee records successfully!")
+            except Exception as e:
+                print(f"Error generating employee {i+1}: {e}")
+                continue
+
+        self._log_generation("generate_employees", "employees", len(employees))
         return employees
 
     def _romanize_thai_name(self, first_name: str, last_name: str) -> str:
@@ -426,79 +386,88 @@ class MockDataGenerator:
                 ["Active", "Active", "Active", "Active", "On Leave", "Inactive"]
             )
 
+    def _generate_phone(self) -> str:
+        """Generate realistic Thai phone number"""
+        prefix = random.choice(["06", "08", "09"])
+        number = f"{prefix}{random.randint(1000000, 9999999)}"
+        return f"{number[:3]}-{number[3:6]}-{number[6:]}"
+
     def generate_sales(self, count: int = 5000) -> List[Dict[str, Any]]:
         """Generate realistic sales transaction data"""
         sales = []
-        print(f"🎲 Generating {count:,} sales records...")
 
         for i in range(count):
-            transaction_date = self._generate_sales_date()
-            product = random.choice(self.products)
-            customer = random.choice(self.companies)
+            try:
+                transaction_date = self._generate_sales_date()
+                product = random.choice(self.products)
+                customer = random.choice(self.companies)
 
-            # Quantity based on product type
-            if "sensor" in product.lower() or "module" in product.lower():
-                quantity = random.randint(1, 100)
-                unit_price = round(random.uniform(500, 5000), 2)
-            elif "filter" in product.lower() or "gasket" in product.lower():
-                quantity = random.randint(10, 1000)
-                unit_price = round(random.uniform(10, 100), 2)
-            else:
-                quantity = random.randint(1, 500)
-                unit_price = round(random.uniform(50, 2000), 2)
+                # Quantity based on product type
+                if "sensor" in product.lower() or "module" in product.lower():
+                    quantity = random.randint(1, 100)
+                    unit_price = round(random.uniform(500, 5000), 2)
+                elif "filter" in product.lower() or "gasket" in product.lower():
+                    quantity = random.randint(10, 1000)
+                    unit_price = round(random.uniform(10, 100), 2)
+                else:
+                    quantity = random.randint(1, 500)
+                    unit_price = round(random.uniform(50, 2000), 2)
 
-            total_amount = round(quantity * unit_price, 2)
+                total_amount = round(quantity * unit_price, 2)
 
-            # Apply seasonal adjustments
-            month = transaction_date.month
-            if month in [11, 12, 1]:  # High season
-                quantity = int(quantity * random.uniform(1.2, 1.8))
-                total_amount = quantity * unit_price
-            elif month in [6, 7, 8]:  # Low season
-                quantity = int(quantity * random.uniform(0.6, 0.9))
-                total_amount = quantity * unit_price
+                # Apply seasonal adjustments
+                month = transaction_date.month
+                if month in [11, 12, 1]:  # High season
+                    quantity = int(quantity * random.uniform(1.2, 1.8))
+                    total_amount = quantity * unit_price
+                elif month in [6, 7, 8]:  # Low season
+                    quantity = int(quantity * random.uniform(0.6, 0.9))
+                    total_amount = quantity * unit_price
 
-            sale = {
-                "transaction_id": f"TXN{i+1:08d}",
-                "customer_name": customer,
-                "customer_code": f"CUST{random.randint(10000, 99999)}",
-                "product_name": product,
-                "product_code": f"PROD{random.randint(1000, 9999)}",
-                "category": self._get_product_category(product),
-                "quantity": quantity,
-                "unit_price": unit_price,
-                "total_amount": total_amount,
-                "currency": "THB",
-                "transaction_date": transaction_date.strftime("%Y-%m-%d"),
-                "sales_rep": f"{random.choice(self.english_first_names)} {random.choice(self.english_last_names)}",
-                "region": random.choice(
-                    ["North", "South", "East", "West", "Central", "Northeast"]
-                ),
-                "country": random.choice(
-                    ["Thailand", "Japan", "Germany", "USA", "China", "India"]
-                ),
-                "payment_method": random.choice(
-                    [
-                        "Credit Card",
-                        "Bank Transfer",
-                        "Cash",
-                        "Check",
-                        "Letter of Credit",
-                    ]
-                ),
-                "payment_status": random.choice(
-                    ["Paid", "Paid", "Paid", "Pending", "Overdue"]
-                ),
-                "delivery_status": random.choice(
-                    ["Delivered", "Delivered", "In Transit", "Pending", "Cancelled"]
-                ),
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            }
+                sale = {
+                    "transaction_id": f"TXN{i+1:08d}",
+                    "customer_name": customer,
+                    "customer_code": f"CUST{random.randint(10000, 99999)}",
+                    "product_name": product,
+                    "product_code": f"PROD{random.randint(1000, 9999)}",
+                    "category": self._get_product_category(product),
+                    "quantity": quantity,
+                    "unit_price": unit_price,
+                    "total_amount": total_amount,
+                    "currency": "THB",
+                    "transaction_date": transaction_date.strftime("%Y-%m-%d"),
+                    "sales_rep": f"{random.choice(self.english_first_names)} {random.choice(self.english_last_names)}",
+                    "region": random.choice(
+                        ["North", "South", "East", "West", "Central", "Northeast"]
+                    ),
+                    "country": random.choice(
+                        ["Thailand", "Japan", "Germany", "USA", "China", "India"]
+                    ),
+                    "payment_method": random.choice(
+                        [
+                            "Credit Card",
+                            "Bank Transfer",
+                            "Cash",
+                            "Check",
+                            "Letter of Credit",
+                        ]
+                    ),
+                    "payment_status": random.choice(
+                        ["Paid", "Paid", "Paid", "Pending", "Overdue"]
+                    ),
+                    "delivery_status": random.choice(
+                        ["Delivered", "Delivered", "In Transit", "Pending", "Cancelled"]
+                    ),
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                }
 
-            sales.append(sale)
+                sales.append(sale)
 
-        self._log_generation("generate_sales", "sales", count)
-        print(f"✅ Generated {count:,} sales records successfully!")
+            except Exception as e:
+                print(f"Error generating sale {i+1}: {e}")
+                continue
+
+        self._log_generation("generate_sales", "sales", len(sales))
         return sales
 
     def _generate_sales_date(self) -> datetime:
@@ -528,8 +497,6 @@ class MockDataGenerator:
     def generate_inventory(self, count: int = 2000) -> List[Dict[str, Any]]:
         """Generate realistic inventory data"""
         inventory = []
-        print(f"🎲 Generating {count:,} inventory records...")
-
         categories = [
             "Engine Parts",
             "Brake Systems",
@@ -545,69 +512,71 @@ class MockDataGenerator:
         ]
 
         for i in range(count):
-            category = random.choice(categories)
-            supplier = random.choice(suppliers)
-            warehouse = random.choice(warehouses)
+            try:
+                category = random.choice(categories)
+                supplier = random.choice(suppliers)
+                warehouse = random.choice(warehouses)
 
-            max_stock = random.randint(100, 10000)
-            current_stock = random.randint(0, max_stock)
-            reorder_point = int(max_stock * random.uniform(0.15, 0.25))
+                max_stock = random.randint(100, 10000)
+                current_stock = random.randint(0, max_stock)
+                reorder_point = int(max_stock * random.uniform(0.15, 0.25))
 
-            price_ranges = {
-                "Engine Parts": (500, 8000),
-                "Brake Systems": (200, 3000),
-                "Electrical Components": (50, 2000),
-                "Transmission Parts": (300, 5000),
-            }
+                price_ranges = {
+                    "Engine Parts": (500, 8000),
+                    "Brake Systems": (200, 3000),
+                    "Electrical Components": (50, 2000),
+                    "Transmission Parts": (300, 5000),
+                }
 
-            price_range = price_ranges.get(category, (50, 500))
-            unit_price = round(random.uniform(price_range[0], price_range[1]), 2)
+                price_range = price_ranges.get(category, (50, 500))
+                unit_price = round(random.uniform(price_range[0], price_range[1]), 2)
 
-            # Status based on stock level
-            if current_stock == 0:
-                status = "Out of Stock"
-            elif current_stock <= reorder_point:
-                status = "Low Stock"
-            elif current_stock >= max_stock * 0.9:
-                status = "Overstocked"
-            else:
-                status = "In Stock"
+                # Status based on stock level
+                if current_stock == 0:
+                    status = "Out of Stock"
+                elif current_stock <= reorder_point:
+                    status = "Low Stock"
+                elif current_stock >= max_stock * 0.9:
+                    status = "Overstocked"
+                else:
+                    status = "In Stock"
 
-            item = {
-                "product_id": f"INV{i+1:07d}",
-                "product_name": f"{category} - Model {random.randint(100, 999)}",
-                "sku": f"SKU{random.randint(100000, 999999)}",
-                "category": category,
-                "supplier": supplier,
-                "warehouse": warehouse,
-                "current_stock": current_stock,
-                "max_stock": max_stock,
-                "min_stock": random.randint(10, reorder_point),
-                "reorder_point": reorder_point,
-                "unit_price": unit_price,
-                "total_value": round(current_stock * unit_price, 2),
-                "currency": "THB",
-                "status": status,
-                "condition": random.choice(
-                    ["New", "New", "New", "Refurbished", "Used"]
-                ),
-                "last_updated": (
-                    datetime.now() - timedelta(days=random.randint(0, 30))
-                ).strftime("%Y-%m-%d"),
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            }
+                item = {
+                    "product_id": f"INV{i+1:07d}",
+                    "product_name": f"{category} - Model {random.randint(100, 999)}",
+                    "sku": f"SKU{random.randint(100000, 999999)}",
+                    "category": category,
+                    "supplier": supplier,
+                    "warehouse": warehouse,
+                    "current_stock": current_stock,
+                    "max_stock": max_stock,
+                    "min_stock": random.randint(10, reorder_point),
+                    "reorder_point": reorder_point,
+                    "unit_price": unit_price,
+                    "total_value": round(current_stock * unit_price, 2),
+                    "currency": "THB",
+                    "status": status,
+                    "condition": random.choice(
+                        ["New", "New", "New", "Refurbished", "Used"]
+                    ),
+                    "last_updated": (
+                        datetime.now() - timedelta(days=random.randint(0, 30))
+                    ).strftime("%Y-%m-%d"),
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                }
 
-            inventory.append(item)
+                inventory.append(item)
 
-        self._log_generation("generate_inventory", "inventory", count)
-        print(f"✅ Generated {count:,} inventory records successfully!")
+            except Exception as e:
+                print(f"Error generating inventory item {i+1}: {e}")
+                continue
+
+        self._log_generation("generate_inventory", "inventory", len(inventory))
         return inventory
 
     def generate_financial(self, count: int = 1000) -> List[Dict[str, Any]]:
         """Generate realistic financial transaction data"""
         financial = []
-        print(f"🎲 Generating {count:,} financial records...")
-
         account_types = ["Assets", "Liabilities", "Equity", "Revenue", "Expenses"]
         transaction_types = [
             "Payment",
@@ -627,57 +596,57 @@ class MockDataGenerator:
         }
 
         for i in range(count):
-            account_type = random.choice(account_types)
-            account_name = random.choice(accounts[account_type])
-            transaction_type = random.choice(transaction_types)
+            try:
+                account_type = random.choice(account_types)
+                account_name = random.choice(accounts[account_type])
+                transaction_type = random.choice(transaction_types)
 
-            # Generate amount based on account type
-            if account_type == "Revenue":
-                amount = round(random.uniform(10000, 1000000), 2)
-            elif account_type == "Expenses":
-                amount = round(random.uniform(5000, 500000), 2)
-            else:
-                amount = round(random.uniform(1000, 100000), 2)
+                # Generate amount based on account type
+                if account_type == "Revenue":
+                    amount = round(random.uniform(10000, 1000000), 2)
+                elif account_type == "Expenses":
+                    amount = round(random.uniform(5000, 500000), 2)
+                else:
+                    amount = round(random.uniform(1000, 100000), 2)
 
-            transaction_date = datetime.now() - timedelta(days=random.randint(0, 730))
-            fiscal_year = (
-                transaction_date.year
-                if transaction_date.month >= 4
-                else transaction_date.year - 1
-            )
+                transaction_date = datetime.now() - timedelta(
+                    days=random.randint(0, 730)
+                )
+                fiscal_year = (
+                    transaction_date.year
+                    if transaction_date.month >= 4
+                    else transaction_date.year - 1
+                )
 
-            transaction = {
-                "transaction_id": f"FIN{i+1:08d}",
-                "account_number": f"{random.randint(1000, 9999)}-{random.randint(100, 999)}",
-                "account_name": account_name,
-                "account_type": account_type,
-                "transaction_type": transaction_type,
-                "amount": amount,
-                "currency": random.choice(["THB", "USD", "EUR", "JPY"]),
-                "transaction_date": transaction_date.strftime("%Y-%m-%d"),
-                "description": f"{account_name} {transaction_type}",
-                "reference_number": f"REF{random.randint(100000, 999999)}",
-                "department": random.choice(self.departments),
-                "approval_status": random.choice(
-                    ["Approved", "Approved", "Approved", "Pending", "Rejected"]
-                ),
-                "fiscal_year": fiscal_year,
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            }
+                transaction = {
+                    "transaction_id": f"FIN{i+1:08d}",
+                    "account_number": f"{random.randint(1000, 9999)}-{random.randint(100, 999)}",
+                    "account_name": account_name,
+                    "account_type": account_type,
+                    "transaction_type": transaction_type,
+                    "amount": amount,
+                    "currency": random.choice(["THB", "USD", "EUR", "JPY"]),
+                    "transaction_date": transaction_date.strftime("%Y-%m-%d"),
+                    "description": f"{account_name} {transaction_type}",
+                    "reference_number": f"REF{random.randint(100000, 999999)}",
+                    "department": random.choice(self.departments),
+                    "approval_status": random.choice(
+                        ["Approved", "Approved", "Approved", "Pending", "Rejected"]
+                    ),
+                    "fiscal_year": fiscal_year,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                }
 
-            financial.append(transaction)
+                financial.append(transaction)
 
-        self._log_generation("generate_financial", "financial", count)
-        print(f"✅ Generated {count:,} financial records successfully!")
+            except Exception as e:
+                print(f"Error generating financial record {i+1}: {e}")
+                continue
+
+        self._log_generation("generate_financial", "financial", len(financial))
         return financial
 
-    def _generate_phone(self) -> str:
-        """Generate realistic Thai phone number"""
-        prefix = random.choice(["06", "08", "09"])
-        number = f"{prefix}{random.randint(1000000, 9999999)}"
-        return f"{number[:3]}-{number[3:6]}-{number[6:]}"
-
-    def get_available_templates(self) -> list:
+    def get_available_templates(self) -> List[Dict[str, Any]]:
         """Get available mock data templates"""
         return [
             {
@@ -759,6 +728,6 @@ class MockDataGenerator:
             "total_operations": len(self.generation_log),
             "total_records": total_records,
             "templates_used": templates_used,
-            "last_generation": self.get_last_generated_info(),
+            "last_generation": self.generation_log[-1] if self.generation_log else None,
             "generation_log": self.generation_log[-10:],
         }

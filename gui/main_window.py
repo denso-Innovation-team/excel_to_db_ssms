@@ -1,6 +1,6 @@
 """
 gui/main_window.py
-DENSO888 Gaming Edition Main Window - Fixed Version
+DENSO888 Gaming Edition Main Window - Complete Fixed Version
 """
 
 import tkinter as tk
@@ -172,12 +172,119 @@ class DENSO888GamingEdition:
         )
         self.sidebar.grid(row=0, column=0, sticky="nsew")
 
-    def _create_content_area(self):
-        """Create main content area"""
-        self.content_area = tk.Frame(
-            self.main_container, bg=gaming_theme.colors.bg_primary
+
+def _create_content_area(self):
+    """Create main content area"""
+    self.content_area = tk.Frame(self.main_container, bg=gaming_theme.colors.bg_primary)
+    self.content_area.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
+    # *** เพิ่ม Test Panel ***
+    test_panel = tk.Frame(self.content_area, bg="#FF0066", height=60)
+    test_panel.pack(fill="x", pady=(0, 10))
+    test_panel.pack_propagate(False)
+
+    # Test buttons
+    test_label = tk.Label(
+        test_panel,
+        text="🧪 NOTIFICATION TEST PANEL",
+        font=("Orbitron", 12, "bold"),
+        bg="#FF0066",
+        fg="white",
+    )
+    test_label.pack(side="left", padx=10, pady=15)
+
+    # Test Success Notification
+    success_btn = tk.Button(
+        test_panel,
+        text="✅ Test Success",
+        font=("Arial", 10, "bold"),
+        bg="#00FF88",
+        fg="black",
+        relief="flat",
+        command=self._test_success_notification,
+        cursor="hand2",
+    )
+    success_btn.pack(side="left", padx=5, pady=15)
+
+    # Test Error Notification
+    error_btn = tk.Button(
+        test_panel,
+        text="❌ Test Error",
+        font=("Arial", 10, "bold"),
+        bg="#FF4466",
+        fg="white",
+        relief="flat",
+        command=self._test_error_notification,
+        cursor="hand2",
+    )
+    error_btn.pack(side="left", padx=5, pady=15)
+
+    # Test Info Notification
+    info_btn = tk.Button(
+        test_panel,
+        text="ℹ️ Test Info",
+        font=("Arial", 10, "bold"),
+        bg="#00FFFF",
+        fg="black",
+        relief="flat",
+        command=self._test_info_notification,
+        cursor="hand2",
+    )
+    info_btn.pack(side="left", padx=5, pady=15)
+
+
+# เพิ่ม test methods เหล่านี้ใน class DENSO888GamingEdition:
+
+
+def _test_success_notification(self):
+    """Test success notification"""
+    print("🧪 Testing SUCCESS notification...")
+    try:
+        result = gaming_theme.components.create_notification_toast(
+            self.root, "🎯 Success notification test! เฮียตอมเทสต์สำเร็จ!", "success", 5000
         )
-        self.content_area.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        print(f"✅ Success notification created: {result}")
+    except Exception as e:
+        print(f"❌ Error in success notification: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+def _test_error_notification(self):
+    """Test error notification"""
+    print("🧪 Testing ERROR notification...")
+    try:
+        result = gaming_theme.components.create_notification_toast(
+            self.root,
+            "💥 Error notification test! Something went wrong!",
+            "error",
+            5000,
+        )
+        print(f"✅ Error notification created: {result}")
+    except Exception as e:
+        print(f"❌ Error in error notification: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+def _test_info_notification(self):
+    """Test info notification"""
+    print("🧪 Testing INFO notification...")
+    try:
+        result = gaming_theme.components.create_notification_toast(
+            self.root,
+            "📘 Info notification test! This is an information message.",
+            "info",
+            5000,
+        )
+        print(f"✅ Info notification created: {result}")
+    except Exception as e:
+        print(f"❌ Error in info notification: {e}")
+        import traceback
+
+        traceback.print_exc()
 
     def _create_gaming_status_bar(self):
         """Create gaming-style status bar"""
@@ -234,23 +341,14 @@ class DENSO888GamingEdition:
         """Initialize all application pages with gaming enhancements"""
         try:
             # Create simple gaming pages
-            self.pages = {
-                "dashboard": self._create_simple_gaming_page(
-                    "dashboard", "🎯 Command Center", "Your mission control interface"
-                ),
-                "import": self._create_simple_gaming_page(
-                    "import", "📊 Data Injection", "Transform Excel into database power"
-                ),
-                "database": self._create_simple_gaming_page(
-                    "database", "🗄️ Data Vault", "Configure your data fortress"
-                ),
-                "mock": self._create_simple_gaming_page(
-                    "mock", "🎲 Data Forge", "Generate unlimited test data"
-                ),
-                "logs": self._create_simple_gaming_page(
-                    "logs", "📝 System Logs", "Monitor all system activities"
-                ),
-            }
+            self.pages = {}
+
+            # Dashboard page
+            self.pages["dashboard"] = self._create_dashboard_page()
+            self.pages["import"] = self._create_import_page()
+            self.pages["database"] = self._create_database_page()
+            self.pages["mock"] = self._create_mock_page()
+            self.pages["logs"] = self._create_logs_page()
 
             print("✅ All gaming pages initialized successfully")
 
@@ -258,97 +356,60 @@ class DENSO888GamingEdition:
             print(f"❌ Error creating pages: {e}")
             print(f"🔍 Stack trace: {traceback.format_exc()}")
 
-    def _create_simple_gaming_page(self, page_id: str, title: str, description: str):
-        """Create simple gaming-style page"""
+    def _create_dashboard_page(self):
+        """Create dashboard page"""
 
-        class SimpleGamingPage:
-            def __init__(self, parent, page_id, title, description, theme):
+        class DashboardPage:
+            def __init__(self, parent):
                 self.parent = parent
-                self.page_id = page_id
-                self.theme = theme
-
                 self.main_frame = gaming_theme.components.create_gaming_card(
-                    parent, title, description
+                    parent.content_area,
+                    "🎯 Command Center",
+                    "Your mission control interface",
                 )
+                self._setup_content()
 
-                # Content
-                content_frame = tk.Frame(self.main_frame, bg=theme.colors.bg_card)
+            def _setup_content(self):
+                content_frame = tk.Frame(
+                    self.main_frame, bg=gaming_theme.colors.bg_card
+                )
                 content_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
                 # Icon
-                icons = {
-                    "dashboard": "🎯",
-                    "import": "📊",
-                    "database": "🗄️",
-                    "mock": "🎲",
-                    "logs": "📝",
-                }
-
                 icon_label = tk.Label(
                     content_frame,
-                    text=icons.get(page_id, "⚙️"),
+                    text="🎯",
                     font=("Segoe UI", 48),
-                    bg=theme.colors.bg_card,
-                    fg=theme.colors.neon_orange,
+                    bg=gaming_theme.colors.bg_card,
+                    fg=gaming_theme.colors.neon_orange,
                 )
                 icon_label.pack(pady=20)
 
-                # Message
-                if page_id == "dashboard":
-                    message_text = "🎮 Welcome to DENSO888 Gaming Edition!\n\n• Database Status: Ready for connection\n• System: All components loaded\n• Mission: Transform your Excel data!"
-                elif page_id == "import":
-                    message_text = "📊 Excel Data Injection Portal\n\n• Select your Excel files\n• Configure import settings\n• Launch data transformation!"
-                elif page_id == "database":
-                    message_text = "🗄️ Database Vault Control\n\n• Configure SQLite or SQL Server\n• Test connections\n• Manage your data fortress!"
-                elif page_id == "mock":
-                    message_text = "🎲 Data Forge Laboratory\n\n• Generate employee records\n• Create sales data\n• Build inventory systems!"
-                else:
-                    message_text = f"{title}\n\nThis gaming module is ready for action!\nSelect your mission and begin!"
-
+                # Welcome message
                 message_label = tk.Label(
                     content_frame,
-                    text=message_text,
+                    text="🎮 Welcome to DENSO888 Gaming Edition!\n\n• Database Status: Ready for connection\n• System: All components loaded\n• Mission: Transform your Excel data!",
                     font=("Orbitron", 12),
-                    bg=theme.colors.bg_card,
-                    fg=theme.colors.text_primary,
+                    bg=gaming_theme.colors.bg_card,
+                    fg=gaming_theme.colors.text_primary,
                     justify="center",
                 )
                 message_label.pack()
 
                 # Action button
-                if page_id == "dashboard":
-                    action_text = "🚀 View System Status"
-                elif page_id == "import":
-                    action_text = "📁 Select Excel File"
-                elif page_id == "database":
-                    action_text = "🔗 Configure Database"
-                elif page_id == "mock":
-                    action_text = "🎲 Generate Data"
-                else:
-                    action_text = "⚡ Activate Module"
-
                 action_btn = gaming_theme.components.create_neon_button(
                     content_frame,
-                    action_text,
-                    command=lambda: self._show_action_message(page_id),
+                    "🚀 View System Status",
+                    command=lambda: self._show_action_message(),
                     style="primary",
                     size="large",
                 )
                 action_btn.pack(pady=20)
 
-            def _show_action_message(self, page_id):
-                """Show action message"""
-                messages = {
-                    "dashboard": "🎯 Dashboard ready! Connect database to unlock full features.",
-                    "import": "📊 Import feature ready! Connect database first to begin data injection.",
-                    "database": "🗄️ Database configuration ready! Choose SQLite for quick start.",
-                    "mock": "🎲 Mock data forge ready! Connect database to start generating data.",
-                    "logs": "📝 System logs active! Real-time monitoring enabled.",
-                }
-
+            def _show_action_message(self):
                 gaming_theme.components.create_notification_toast(
-                    self.parent.root if hasattr(self.parent, "root") else self.parent,
-                    messages.get(page_id, f"{page_id.title()} module activated!"),
+                    self.parent.root,
+                    "🎯 Dashboard ready! Connect database to unlock full features.",
                     "info",
                     3000,
                 )
@@ -362,7 +423,267 @@ class DENSO888GamingEdition:
             def refresh(self):
                 pass
 
-        return SimpleGamingPage(self, page_id, title, description, gaming_theme)
+        return DashboardPage(self)
+
+    def _create_import_page(self):
+        """Create import page"""
+
+        class ImportPage:
+            def __init__(self, parent):
+                self.parent = parent
+                self.main_frame = gaming_theme.components.create_gaming_card(
+                    parent.content_area,
+                    "📊 Data Injection",
+                    "Transform Excel into database power",
+                )
+                self._setup_content()
+
+            def _setup_content(self):
+                content_frame = tk.Frame(
+                    self.main_frame, bg=gaming_theme.colors.bg_card
+                )
+                content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+                icon_label = tk.Label(
+                    content_frame,
+                    text="📊",
+                    font=("Segoe UI", 48),
+                    bg=gaming_theme.colors.bg_card,
+                    fg=gaming_theme.colors.neon_orange,
+                )
+                icon_label.pack(pady=20)
+
+                message_label = tk.Label(
+                    content_frame,
+                    text="📊 Excel Data Injection Portal\n\n• Select your Excel files\n• Configure import settings\n• Launch data transformation!",
+                    font=("Orbitron", 12),
+                    bg=gaming_theme.colors.bg_card,
+                    fg=gaming_theme.colors.text_primary,
+                    justify="center",
+                )
+                message_label.pack()
+
+                action_btn = gaming_theme.components.create_neon_button(
+                    content_frame,
+                    "📁 Select Excel File",
+                    command=lambda: self._show_action_message(),
+                    style="primary",
+                    size="large",
+                )
+                action_btn.pack(pady=20)
+
+            def _show_action_message(self):
+                gaming_theme.components.create_notification_toast(
+                    self.parent.root,
+                    "📊 Import feature ready! Connect database first to begin data injection.",
+                    "info",
+                    3000,
+                )
+
+            def show(self):
+                self.main_frame.pack(fill="both", expand=True)
+
+            def hide(self):
+                self.main_frame.pack_forget()
+
+            def refresh(self):
+                pass
+
+        return ImportPage(self)
+
+    def _create_database_page(self):
+        """Create database page"""
+
+        class DatabasePage:
+            def __init__(self, parent):
+                self.parent = parent
+                self.main_frame = gaming_theme.components.create_gaming_card(
+                    parent.content_area, "🗄️ Data Vault", "Configure your data fortress"
+                )
+                self._setup_content()
+
+            def _setup_content(self):
+                content_frame = tk.Frame(
+                    self.main_frame, bg=gaming_theme.colors.bg_card
+                )
+                content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+                icon_label = tk.Label(
+                    content_frame,
+                    text="🗄️",
+                    font=("Segoe UI", 48),
+                    bg=gaming_theme.colors.bg_card,
+                    fg=gaming_theme.colors.neon_orange,
+                )
+                icon_label.pack(pady=20)
+
+                message_label = tk.Label(
+                    content_frame,
+                    text="🗄️ Database Vault Control\n\n• Configure SQLite or SQL Server\n• Test connections\n• Manage your data fortress!",
+                    font=("Orbitron", 12),
+                    bg=gaming_theme.colors.bg_card,
+                    fg=gaming_theme.colors.text_primary,
+                    justify="center",
+                )
+                message_label.pack()
+
+                action_btn = gaming_theme.components.create_neon_button(
+                    content_frame,
+                    "🔗 Configure Database",
+                    command=lambda: self._show_action_message(),
+                    style="primary",
+                    size="large",
+                )
+                action_btn.pack(pady=20)
+
+            def _show_action_message(self):
+                gaming_theme.components.create_notification_toast(
+                    self.parent.root,
+                    "🗄️ Database configuration ready! Choose SQLite for quick start.",
+                    "info",
+                    3000,
+                )
+
+            def show(self):
+                self.main_frame.pack(fill="both", expand=True)
+
+            def hide(self):
+                self.main_frame.pack_forget()
+
+            def refresh(self):
+                pass
+
+        return DatabasePage(self)
+
+    def _create_mock_page(self):
+        """Create mock data page"""
+
+        class MockPage:
+            def __init__(self, parent):
+                self.parent = parent
+                self.main_frame = gaming_theme.components.create_gaming_card(
+                    parent.content_area, "🎲 Data Forge", "Generate unlimited test data"
+                )
+                self._setup_content()
+
+            def _setup_content(self):
+                content_frame = tk.Frame(
+                    self.main_frame, bg=gaming_theme.colors.bg_card
+                )
+                content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+                icon_label = tk.Label(
+                    content_frame,
+                    text="🎲",
+                    font=("Segoe UI", 48),
+                    bg=gaming_theme.colors.bg_card,
+                    fg=gaming_theme.colors.neon_orange,
+                )
+                icon_label.pack(pady=20)
+
+                message_label = tk.Label(
+                    content_frame,
+                    text="🎲 Data Forge Laboratory\n\n• Generate employee records\n• Create sales data\n• Build inventory systems!",
+                    font=("Orbitron", 12),
+                    bg=gaming_theme.colors.bg_card,
+                    fg=gaming_theme.colors.text_primary,
+                    justify="center",
+                )
+                message_label.pack()
+
+                action_btn = gaming_theme.components.create_neon_button(
+                    content_frame,
+                    "🎲 Generate Data",
+                    command=lambda: self._show_action_message(),
+                    style="primary",
+                    size="large",
+                )
+                action_btn.pack(pady=20)
+
+            def _show_action_message(self):
+                gaming_theme.components.create_notification_toast(
+                    self.parent.root,
+                    "🎲 Mock data forge ready! Connect database to start generating data.",
+                    "info",
+                    3000,
+                )
+
+            def show(self):
+                self.main_frame.pack(fill="both", expand=True)
+
+            def hide(self):
+                self.main_frame.pack_forget()
+
+            def refresh(self):
+                pass
+
+        return MockPage(self)
+
+    def _create_logs_page(self):
+        """Create logs page"""
+
+        class LogsPage:
+            def __init__(self, parent):
+                self.parent = parent
+                self.main_frame = gaming_theme.components.create_gaming_card(
+                    parent.content_area,
+                    "📝 System Logs",
+                    "Monitor all system activities",
+                )
+                self._setup_content()
+
+            def _setup_content(self):
+                content_frame = tk.Frame(
+                    self.main_frame, bg=gaming_theme.colors.bg_card
+                )
+                content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+                icon_label = tk.Label(
+                    content_frame,
+                    text="📝",
+                    font=("Segoe UI", 48),
+                    bg=gaming_theme.colors.bg_card,
+                    fg=gaming_theme.colors.neon_orange,
+                )
+                icon_label.pack(pady=20)
+
+                message_label = tk.Label(
+                    content_frame,
+                    text="📝 System Logs Monitor\n\n• Real-time activity tracking\n• Error monitoring\n• Performance metrics!",
+                    font=("Orbitron", 12),
+                    bg=gaming_theme.colors.bg_card,
+                    fg=gaming_theme.colors.text_primary,
+                    justify="center",
+                )
+                message_label.pack()
+
+                action_btn = gaming_theme.components.create_neon_button(
+                    content_frame,
+                    "📝 View Logs",
+                    command=lambda: self._show_action_message(),
+                    style="primary",
+                    size="large",
+                )
+                action_btn.pack(pady=20)
+
+            def _show_action_message(self):
+                gaming_theme.components.create_notification_toast(
+                    self.parent.root,
+                    "📝 System logs active! Real-time monitoring enabled.",
+                    "info",
+                    3000,
+                )
+
+            def show(self):
+                self.main_frame.pack(fill="both", expand=True)
+
+            def hide(self):
+                self.main_frame.pack_forget()
+
+            def refresh(self):
+                pass
+
+        return LogsPage(self)
 
     def _setup_event_handlers(self):
         """Setup gaming event handlers"""
@@ -533,13 +854,16 @@ class DENSO888GamingEdition:
 
     def _toggle_fullscreen(self):
         """Toggle fullscreen mode"""
-        current_state = self.root.attributes("-fullscreen")
-        self.root.attributes("-fullscreen", not current_state)
+        try:
+            current_state = self.root.attributes("-fullscreen")
+            self.root.attributes("-fullscreen", not current_state)
 
-        if not current_state:
-            self._show_gaming_notification("🖥️ Fullscreen mode activated", "info")
-        else:
-            self._show_gaming_notification("🖥️ Windowed mode activated", "info")
+            if not current_state:
+                self._show_gaming_notification("🖥️ Fullscreen mode activated", "info")
+            else:
+                self._show_gaming_notification("🖥️ Windowed mode activated", "info")
+        except Exception:
+            self._show_gaming_notification("🖥️ Fullscreen not supported", "warning")
 
     def _on_closing(self):
         """Handle application closing with gaming farewell"""
@@ -569,7 +893,7 @@ class DENSO888GamingEdition:
         try:
             self.root.quit()
             self.root.destroy()
-        except:
+        except Exception:
             pass
 
     def run(self):

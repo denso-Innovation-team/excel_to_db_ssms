@@ -51,12 +51,11 @@ class Colors:
     bronze: str = "#CD7F32"
 
 
-@dataclass
 class Fonts:
     """Font configurations - Fixed structure"""
 
-    def __post_init__(self):
-        """Initialize font dictionaries"""
+    def __init__(self):
+        """Initialize font configurations"""
         # Gaming fonts
         self.heading_xl = ("Orbitron", 24, "bold")
         self.heading_lg = ("Orbitron", 18, "bold")

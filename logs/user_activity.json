@@ -5,5 +5,33 @@
     "action": "application_shutdown",
     "details": {},
     "user_agent": "DENSO888_Desktop"
+  },
+  {
+    "timestamp": "2025-06-15T18:56:21.571791",
+    "ip_address": "192.168.1.42",
+    "action": "application_shutdown",
+    "details": {},
+    "user_agent": "DENSO888_Desktop"
+  },
+  {
+    "timestamp": "2025-06-15T18:56:58.926724",
+    "ip_address": "192.168.1.42",
+    "action": "application_shutdown",
+    "details": {},
+    "user_agent": "DENSO888_Desktop"
+  },
+  {
+    "timestamp": "2025-06-15T22:00:56.836639",
+    "ip_address": "192.168.1.42",
+    "action": "application_shutdown",
+    "details": {},
+    "user_agent": "DENSO888_Desktop"
+  },
+  {
+    "timestamp": "2025-06-15T22:04:05.442129",
+    "ip_address": "192.168.1.42",
+    "action": "application_shutdown",
+    "details": {},
+    "user_agent": "DENSO888_Desktop"
   }
 ]

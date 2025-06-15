@@ -1,12 +1,10 @@
 """
 models/database_config.py
-Database Configuration Model
-Created by: Thammaphon Chittasuwanna (SDM) | Innovation Department
+Fixed Database Configuration Model
 """
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
-from urllib.parse import quote_plus
+from typing import Dict, Any
 
 
 @dataclass
@@ -36,57 +34,47 @@ class DatabaseConfig:
     pool_timeout: int = 30
     pool_recycle: int = 3600
 
-    def get_connection_url(self) -> Optional[str]:
-        """Get SQLAlchemy connection URL"""
+    def get_connection_params(self) -> Dict[str, Any]:
+        """Get connection parameters for database manager"""
         if self.db_type == "sqlite":
-            return f"sqlite:///{self.sqlite_file}"
-
+            return {"db_type": "sqlite", "sqlite_file": self.sqlite_file}
         elif self.db_type == "sqlserver":
-            if self.use_windows_auth:
-                server_part = f"{self.server}"
-                if self.port != 1433:
-                    server_part += f",{self.port}"
-
-                params = []
-                if self.trust_certificate:
-                    params.append("TrustServerCertificate=yes")
-                if self.encrypt:
-                    params.append("Encrypt=yes")
-
-                param_string = "&".join(params)
-                if param_string:
-                    param_string = "&" + param_string
-
-                return (
-                    f"mssql+pyodbc://@{server_part}/{self.database}"
-                    f"?driver={quote_plus(self.driver)}"
-                    f"&trusted_connection=yes{param_string}"
-                )
-            else:
-                server_part = f"{self.server}"
-                if self.port != 1433:
-                    server_part += f",{self.port}"
-
-                params = []
-                if self.trust_certificate:
-                    params.append("TrustServerCertificate=yes")
-                if self.encrypt:
-                    params.append("Encrypt=yes")
-
-                param_string = "&".join(params)
-                if param_string:
-                    param_string = "&" + param_string
-
-                return (
-                    f"mssql+pyodbc://{quote_plus(self.username)}:"
-                    f"{quote_plus(self.password)}@{server_part}/"
-                    f"{self.database}?driver={quote_plus(self.driver)}{param_string}"
-                )
-
-        return None
+            return {
+                "db_type": "sqlserver",
+                "server": self.server,
+                "database": self.database,
+                "username": self.username,
+                "password": self.password,
+                "port": self.port,
+                "driver": self.driver,
+                "use_windows_auth": self.use_windows_auth,
+                "trust_certificate": self.trust_certificate,
+                "encrypt": self.encrypt,
+            }
+        else:
+            return {"db_type": "sqlite", "sqlite_file": self.sqlite_file}
 
     def update_from_dict(self, data: Dict[str, Any]):
         """Update configuration from dictionary"""
         for key, value in data.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+
+    def validate(self) -> tuple[bool, str]:
+        """Validate configuration"""
+        if self.db_type == "sqlite":
+            if not self.sqlite_file:
+                return False, "SQLite file path is required"
+            return True, "Valid SQLite configuration"
+
+        elif self.db_type == "sqlserver":
+            if not self.server:
+                return False, "Server name is required"
+            if not self.database:
+                return False, "Database name is required"
+            if not self.use_windows_auth and (not self.username or not self.password):
+                return False, "Username and password required for SQL authentication"
+            return True, "Valid SQL Server configuration"
+
+        else:
+            return False, f"Unknown database type: {self.db_type}"
