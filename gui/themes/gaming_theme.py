@@ -426,16 +426,23 @@ class GamingTheme:
         self.style = "Cyberpunk Gaming Enhanced"
 
     def apply_to_root(self, root: tk.Tk):
-        """Apply gaming theme to root window safely"""
+        """Apply gaming theme safely"""
         try:
+            print("🎨 Applying gaming theme...")
             root.configure(bg=self.colors.bg_primary)
-            # Optional transparency
+
+            # Skip transparency on Windows if problematic
             try:
                 root.attributes("-alpha", 0.98)
-            except Exception:
-                pass  # Not all systems support transparency
+            except Exception as e:
+                print(f"⚠️ Transparency not supported: {e}")
+
+            print("✅ Gaming theme applied")
+
         except Exception as e:
-            print(f"⚠️ Theme application warning: {e}")
+            print(f"❌ Theme application failed: {e}")
+            # Fallback to basic theme
+            root.configure(bg="#1A1A2E")
 
     def create_gaming_sidebar(
         self, parent, items: List[Dict], callback: Callable

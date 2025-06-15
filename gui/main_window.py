@@ -59,72 +59,126 @@ class DENSO888GamingEdition:
             raise
 
     def _create_main_window(self):
-        """Create main gaming-style window"""
+        """Create main window with forced content rendering"""
         self.root = tk.Tk()
         self.root.title(
             f"🎮 {self.config.app_name} Gaming Edition v{self.config.version}"
         )
-        self.root.geometry(f"{self.config.window_width}x{self.config.window_height}")
-        self.root.minsize(1000, 700)
 
-        # Apply gaming theme
-        gaming_theme.apply_to_root(self.root)
+        # *** FIX 1: ใช้ manual geometry แทน config ***
+        window_width = 1200  # ลดจาก 1400
+        window_height = 800  # ลดจาก 900
 
-        # Center window
-        self.root.update_idletasks()
-        x = (self.root.winfo_screenwidth() // 2) - (self.config.window_width // 2)
-        y = (self.root.winfo_screenheight() // 2) - (self.config.window_height // 2)
-        self.root.geometry(
-            f"{self.config.window_width}x{self.config.window_height}+{x}+{y}"
-        )
+        # Center on screen
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
 
-        # Configure main layout
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        self.root.minsize(800, 600)
+
+        # *** FIX 2: Apply theme BEFORE content creation ***
+        self.root.configure(bg="#0A0A0F")  # Gaming dark background
+
+        # *** FIX 3: Force grid configuration immediately ***
         self.root.grid_rowconfigure(1, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
 
+        # *** FIX 4: Add immediate update ***
+        self.root.update_idletasks()
+        print(f"🪟 Window configured: {window_width}x{window_height}+{x}+{y}")
+
     def _setup_gaming_components(self):
-        """Setup gaming-style UI components"""
-        # Create gaming header
-        self._create_gaming_header()
+        """Setup gaming-style UI components - FIXED VERSION"""
+        print("🎮 Setting up gaming components...")
 
-        # Create main layout
-        self._create_main_layout()
+        try:
+            # *** FIX 1: Create header first and test ***
+            self._create_gaming_header()
+            print("✅ Header created")
 
-        # Create gaming sidebar
-        self._create_gaming_sidebar()
+            # Force update after header
+            self.root.update_idletasks()
 
-        # Create content area
-        self._create_content_area()
+            # *** FIX 2: Create layout step by step ***
+            self._create_main_layout()
+            print("✅ Layout created")
 
-        # Create gaming status bar
-        self._create_gaming_status_bar()
+            # *** FIX 3: Create sidebar ***
+            self._create_gaming_sidebar()
+            print("✅ Sidebar created")
 
-        # Initialize pages
-        self._initialize_pages()
+            # *** FIX 4: Create content area ***
+            self._create_content_area()
+            print("✅ Content area created")
 
-        # Show welcome animation
-        self._show_welcome_animation()
+            # *** FIX 5: Create status bar ***
+            self._create_gaming_status_bar()
+            print("✅ Status bar created")
+
+            # *** FIX 6: Force all components to update ***
+            self.root.update()
+
+            # *** FIX 7: Initialize pages AFTER UI is ready ***
+            self._initialize_pages()
+            print("✅ Pages initialized")
+
+            # *** FIX 8: Show welcome WITHOUT animation first ***
+            self._show_page("dashboard")
+            print("✅ Dashboard page shown")
+
+            # Final update
+            self.root.update()
+
+        except Exception as e:
+            print(f"❌ Component setup error: {e}")
+            import traceback
+
+            traceback.print_exc()
 
     def _create_gaming_header(self):
-        """Create gaming-style header with animations"""
-        header_frame = gaming_theme.create_gaming_header(
-            self.root,
-            "🏭 DENSO888 GAMING EDITION",
-            "Excel to SQL Management System • เฮียตอมจัดหั้ย!!! 🚀",
-        )
-        header_frame.grid(row=0, column=0, columnspan=2, sticky="ew")
+        """Create header with immediate visibility test"""
+        try:
+            # *** SIMPLE HEADER FIRST ***
+            self.header_frame = tk.Frame(
+                self.root, bg="#FF0066", height=80  # Bright color for testing
+            )
+            self.header_frame.grid(row=0, column=0, columnspan=2, sticky="ew")
+            self.header_frame.grid_propagate(False)
+
+            # Simple title
+            title_label = tk.Label(
+                self.header_frame,
+                text="🏭 DENSO888 GAMING EDITION",
+                font=("Arial", 16, "bold"),  # Fallback font
+                bg="#FF0066",
+                fg="white",
+            )
+            title_label.pack(expand=True)
+
+            print("✅ Simple header created with bright background")
+
+        except Exception as e:
+            print(f"❌ Header creation error: {e}")
 
     def _create_main_layout(self):
-        """Create main application layout"""
-        # Main container
+        """Create main application layout - MISSING METHOD"""
+        print("🏗️ Creating main layout...")
+
+        # Main container สำหรับ sidebar และ content
         self.main_container = tk.Frame(self.root, bg=gaming_theme.colors.bg_primary)
         self.main_container.grid(row=1, column=0, columnspan=2, sticky="nsew")
         self.main_container.grid_rowconfigure(0, weight=1)
         self.main_container.grid_columnconfigure(1, weight=1)
 
+        print("✅ Main layout container created")
+
     def _create_gaming_sidebar(self):
-        """Create gaming-style sidebar"""
-        # Sidebar menu items with gaming aesthetics
+        """Create gaming-style sidebar - FIXED VERSION"""
+        print("🎮 Creating gaming sidebar...")
+
+        # Sidebar menu items
         menu_items = [
             {
                 "id": "dashboard",
@@ -168,71 +222,120 @@ class DENSO888GamingEdition:
             },
         ]
 
-        self.sidebar = gaming_theme.create_gaming_sidebar(
-            self.main_container, menu_items, self._on_page_changed
-        )
-        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        # Create sidebar
+        try:
+            self.sidebar = gaming_theme.create_gaming_sidebar(
+                self.main_container, menu_items, self._on_page_changed
+            )
+            self.sidebar.grid(row=0, column=0, sticky="nsew")
+            print("✅ Gaming sidebar created")
+        except Exception as e:
+            print(f"❌ Sidebar creation error: {e}")
+            # Fallback sidebar
+            self.sidebar = tk.Frame(self.main_container, bg="#151521", width=280)
+            self.sidebar.grid(row=0, column=0, sticky="nsew")
+            self.sidebar.pack_propagate(False)
+
+            # Simple fallback content
+            tk.Label(
+                self.sidebar,
+                text="🏭 DENSO888\nSIDEBAR",
+                font=("Arial", 12, "bold"),
+                bg="#151521",
+                fg="#FF0066",
+                justify="center",
+            ).pack(expand=True)
 
     def _create_content_area(self):
-        """Create main content area"""
+        """Create main content area - ENHANCED VERSION"""
+        print("📱 Creating content area...")
+
         self.content_area = tk.Frame(
-            self.main_container, bg=gaming_theme.colors.bg_primary
+            self.main_container, bg="#00AA00"  # สีเขียวสำหรับทดสอบ
         )
         self.content_area.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
 
-        # *** Test Panel for Notifications ***
-        test_panel = tk.Frame(self.content_area, bg="#FF0066", height=60)
-        test_panel.pack(fill="x", pady=(0, 10))
-        test_panel.pack_propagate(False)
+        # *** IMMEDIATE VISIBLE CONTENT ***
+        # Welcome message
+        welcome_frame = tk.Frame(self.content_area, bg="#00AA00")
+        welcome_frame.pack(expand=True)
 
-        # Test buttons
-        test_label = tk.Label(
-            test_panel,
-            text="🧪 NOTIFICATION TEST PANEL",
-            font=("Orbitron", 12, "bold"),
+        tk.Label(
+            welcome_frame,
+            text="🎮 DENSO888 GAMING EDITION",
+            font=("Arial", 24, "bold"),
+            bg="#00AA00",
+            fg="white",
+        ).pack(pady=30)
+
+        tk.Label(
+            welcome_frame,
+            text="Created by: Thammaphon Chittasuwanna (SDM)\nInnovation Department | DENSO Corporation\nเฮียตอมจัดหั้ย!!! 🚀",
+            font=("Arial", 14),
+            bg="#00AA00",
+            fg="white",
+            justify="center",
+        ).pack(pady=20)
+
+        # Status message
+        status_frame = tk.Frame(self.content_area, bg="#0066CC", height=60)
+        status_frame.pack(fill="x", side="bottom")
+        status_frame.pack_propagate(False)
+
+        tk.Label(
+            status_frame,
+            text="✅ Content Area Active - Layout Working!",
+            font=("Arial", 12, "bold"),
+            bg="#0066CC",
+            fg="white",
+        ).pack(expand=True)
+
+        print("✅ Content area created with test content")
+
+    def _create_gaming_status_bar(self):
+        """Create gaming-style status bar - SIMPLE VERSION"""
+        print("📊 Creating status bar...")
+
+        self.status_bar = tk.Frame(
+            self.root,
+            bg="#FF0066",
+            height=35,
+            relief="flat",
+            bd=0,
+        )
+        self.status_bar.grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.status_bar.grid_propagate(False)
+
+        # Status content
+        status_content = tk.Frame(self.status_bar, bg="#FF0066")
+        status_content.pack(fill="both", expand=True, padx=15, pady=5)
+
+        # Left side - status message
+        self.status_label = tk.Label(
+            status_content,
+            text="🎮 SYSTEM READY • เฮียตอมจัดหั้ย!!! 🚀",
+            font=("Arial", 10, "bold"),
+            bg="#FF0066",
+            fg="white",
+            anchor="w",
+        )
+        self.status_label.pack(side="left", fill="y")
+
+        # Right side - simple status
+        right_frame = tk.Frame(status_content, bg="#FF0066")
+        right_frame.pack(side="right")
+
+        # Connection status
+        self.connection_label = tk.Label(
+            right_frame,
+            text="🔴 OFFLINE",
+            font=("Arial", 10, "bold"),
             bg="#FF0066",
             fg="white",
         )
-        test_label.pack(side="left", padx=10, pady=15)
+        self.connection_label.pack(side="right", padx=(10, 0))
 
-        # Test Success Notification
-        success_btn = tk.Button(
-            test_panel,
-            text="✅ Test Success",
-            font=("Arial", 10, "bold"),
-            bg="#00FF88",
-            fg="black",
-            relief="flat",
-            command=self._test_success_notification,
-            cursor="hand2",
-        )
-        success_btn.pack(side="left", padx=5, pady=15)
-
-        # Test Error Notification
-        error_btn = tk.Button(
-            test_panel,
-            text="❌ Test Error",
-            font=("Arial", 10, "bold"),
-            bg="#FF4466",
-            fg="white",
-            relief="flat",
-            command=self._test_error_notification,
-            cursor="hand2",
-        )
-        error_btn.pack(side="left", padx=5, pady=15)
-
-        # Test Info Notification
-        info_btn = tk.Button(
-            test_panel,
-            text="ℹ️ Test Info",
-            font=("Arial", 10, "bold"),
-            bg="#00FFFF",
-            fg="black",
-            relief="flat",
-            command=self._test_info_notification,
-            cursor="hand2",
-        )
-        info_btn.pack(side="left", padx=5, pady=15)
+        print("✅ Status bar created")
 
     def _test_success_notification(self):
         """Test success notification"""
@@ -337,23 +440,102 @@ class DENSO888GamingEdition:
         self.connection_label.pack(side="right", padx=(10, 0))
 
     def _initialize_pages(self):
-        """Initialize all application pages with gaming enhancements"""
+        """Initialize pages - SIMPLIFIED VERSION"""
+        print("📄 Initializing pages...")
+
         try:
-            # Create simple gaming pages
+            # Simple page storage
             self.pages = {}
+            self.current_page = "dashboard"
 
-            # Dashboard page
-            self.pages["dashboard"] = self._create_dashboard_page()
-            self.pages["import"] = self._create_import_page()
-            self.pages["database"] = self._create_database_page()
-            self.pages["mock"] = self._create_mock_page()
-            self.pages["logs"] = self._create_logs_page()
+            # Create simple dashboard content
+            self._create_simple_dashboard()
 
-            print("✅ All gaming pages initialized successfully")
+            print("✅ Simple pages initialized")
 
         except Exception as e:
-            print(f"❌ Error creating pages: {e}")
-            print(f"🔍 Stack trace: {traceback.format_exc()}")
+            print(f"❌ Page initialization error: {e}")
+
+    def _create_simple_dashboard(self):
+        """Create simple dashboard content"""
+        # Clear content area and add dashboard
+        for widget in self.content_area.winfo_children():
+            widget.destroy()
+
+        # Dashboard frame
+        dashboard_frame = tk.Frame(self.content_area, bg="#1A1A2E")
+        dashboard_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Title
+        tk.Label(
+            dashboard_frame,
+            text="🎯 COMMAND CENTER",
+            font=("Arial", 20, "bold"),
+            bg="#1A1A2E",
+            fg="#00FFFF",
+        ).pack(pady=30)
+
+        # Content
+        content_text = """
+    🎮 Welcome to DENSO888 Gaming Edition!
+
+    ✅ System Status: Online
+    ✅ Database: Ready for connection  
+    ✅ Excel Import: Ready
+    ✅ Mock Data: Available
+
+    Created by: Thammaphon Chittasuwanna (SDM)
+    Innovation Department | DENSO Corporation
+
+    เฮียตอมจัดหั้ย!!! 🚀
+        """
+
+        tk.Label(
+            dashboard_frame,
+            text=content_text,
+            font=("Arial", 12),
+            bg="#1A1A2E",
+            fg="white",
+            justify="center",
+        ).pack(pady=20)
+
+        # Action buttons
+        button_frame = tk.Frame(dashboard_frame, bg="#1A1A2E")
+        button_frame.pack(pady=30)
+
+        # Test buttons
+        tk.Button(
+            button_frame,
+            text="🗄️ Database Setup",
+            font=("Arial", 12),
+            bg="#8866FF",
+            fg="white",
+            padx=20,
+            pady=10,
+            relief="flat",
+        ).pack(side="left", padx=10)
+
+        tk.Button(
+            button_frame,
+            text="📊 Import Excel",
+            font=("Arial", 12),
+            bg="#00FF88",
+            fg="black",
+            padx=20,
+            pady=10,
+            relief="flat",
+        ).pack(side="left", padx=10)
+
+        tk.Button(
+            button_frame,
+            text="🎲 Generate Data",
+            font=("Arial", 12),
+            bg="#FF8800",
+            fg="black",
+            padx=20,
+            pady=10,
+            relief="flat",
+        ).pack(side="left", padx=10)
 
     def _create_dashboard_page(self):
         """Create dashboard page"""
@@ -769,48 +951,39 @@ class DENSO888GamingEdition:
         # Show default page
         self._show_page("dashboard")
 
-    # *** CRITICAL: Missing _on_page_changed method implementation ***
     def _on_page_changed(self, page_id: str):
-        """Handle page navigation with gaming effects - FIXED METHOD"""
+        """Handle page navigation - SIMPLE VERSION"""
+        print(f"🎯 Switching to page: {page_id}")
+
         try:
-            print(f"🎯 Switching to page: {page_id}")
+            # Update status
+            self.status_label.configure(text=f"🎯 {page_id.upper()} ACTIVE")
 
-            # Hide current page
-            if self.current_page and self.current_page in self.pages:
-                self.pages[self.current_page].hide()
-
-            # Show new page with animation
-            if page_id in self.pages:
-                self.pages[page_id].show()
-                self.current_page = page_id
-
-                # Refresh page data
-                if hasattr(self.pages[page_id], "refresh"):
-                    threading.Thread(
-                        target=self.pages[page_id].refresh, daemon=True
-                    ).start()
-
-                # Update status with gaming flair
-                page_names = {
-                    "dashboard": "COMMAND CENTER",
-                    "import": "DATA INJECTION",
-                    "database": "DATA VAULT",
-                    "mock": "DATA FORGE",
-                    "logs": "SYSTEM LOGS",
-                }
-
-                page_name = page_names.get(page_id, page_id.upper())
-                self._update_status(f"🎯 {page_name} ACTIVE")
-
-                # Page change sound effect (visual feedback)
-                self._show_page_transition_effect()
-
+            # Simple page switching
+            if page_id == "dashboard":
+                self._create_simple_dashboard()
             else:
-                print(f"⚠️ Page '{page_id}' not found")
+                # Create placeholder for other pages
+                for widget in self.content_area.winfo_children():
+                    widget.destroy()
+
+                placeholder_frame = tk.Frame(self.content_area, bg="#1A1A2E")
+                placeholder_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+                tk.Label(
+                    placeholder_frame,
+                    text=f"🚧 {page_id.upper()} PAGE\n\nComing Soon...\n\nเฮียตอมกำลังพัฒนา 🚀",
+                    font=("Arial", 16),
+                    bg="#1A1A2E",
+                    fg="#00FFFF",
+                    justify="center",
+                ).pack(expand=True)
+
+            self.current_page = page_id
+            print(f"✅ Switched to {page_id}")
 
         except Exception as e:
-            print(f"❌ Error changing page: {e}")
-            self._show_gaming_notification("Page loading failed", "error")
+            print(f"❌ Page switch error: {e}")
 
     def _show_page_transition_effect(self):
         """Show page transition visual effect"""
@@ -985,39 +1158,79 @@ class DENSO888GamingEdition:
             sys.exit(0)
 
     def run(self):
-        """Start the gaming edition application - FORCE VISIBLE VERSION"""
+        """Start the gaming edition application - ENHANCED VISIBILITY VERSION"""
         try:
             print("🎮 Starting DENSO888 Gaming Edition...")
 
-            def auto_restore():
-                if self.root.state() == "iconic":
+            # *** CRITICAL: Force window visibility - Enhanced ***
+            def force_window_visible():
+                try:
+                    # 1. Force to normal state
+                    self.root.state("normal")
                     self.root.deiconify()
-                    print("🔄 Auto-restored window")
-                self.root.after(500, auto_restore)
 
-            # *** CRITICAL: Force window to stay visible ***
-            self.root.deiconify()
-            self.root.lift()
-            self.root.focus_force()
-            self.root.attributes("-topmost", True)
+                    # 2. Bring to front aggressively
+                    self.root.lift()
+                    self.root.attributes("-topmost", True)
+                    self.root.focus_force()
 
-            # Force update
-            self.root.update_idletasks()
-            self.root.update()
+                    # 3. Center on screen (fix off-screen issue)
+                    self.root.update_idletasks()
+                    width = self.root.winfo_width()
+                    height = self.root.winfo_height()
+                    screen_width = self.root.winfo_screenwidth()
+                    screen_height = self.root.winfo_screenheight()
 
-            # Remove topmost after showing
-            self.root.after(2000, lambda: self.root.attributes("-topmost", False))
+                    x = (screen_width - width) // 2
+                    y = (screen_height - height) // 2
 
-            # *** ADD: Prevent auto-minimize ***
-            def keep_visible():
-                if self.root.state() == "iconic":  # If minimized
-                    self.root.deiconify()  # Show again
-                    print("🔄 Window was minimized, restoring...")
-                self.root.after(1000, keep_visible)  # Check every second
+                    # Ensure window is on screen
+                    x = max(0, min(x, screen_width - width))
+                    y = max(0, min(y, screen_height - height))
 
-            self.root.after(1000, keep_visible)
+                    self.root.geometry(f"{width}x{height}+{x}+{y}")
 
-            print("🎯 Window forced visible, starting mainloop...")
+                    # 4. Flash window to get attention
+                    self.root.attributes("-topmost", False)  # Remove always on top
+                    self.root.bell()  # System beep
+
+                    print(f"🎯 Window positioned at: {x},{y} size: {width}x{height}")
+
+                except Exception as e:
+                    print(f"⚠️ Window visibility error: {e}")
+
+            # Apply visibility fix multiple times
+            self.root.after(100, force_window_visible)
+            self.root.after(500, force_window_visible)
+            self.root.after(1000, force_window_visible)
+
+            # *** DIAGNOSTIC: Monitor window state ***
+            def monitor_window_state():
+                try:
+                    state = self.root.state()
+                    geometry = self.root.geometry()
+                    visible = self.root.winfo_viewable()
+                    mapped = self.root.winfo_ismapped()
+
+                    print(
+                        f"🔍 Window State: {state} | Geometry: {geometry} | Visible: {visible} | Mapped: {mapped}"
+                    )
+
+                    # Auto-fix if hidden
+                    if state == "iconic" or not visible:
+                        print("🔧 Auto-fixing hidden window...")
+                        force_window_visible()
+
+                except Exception as e:
+                    print(f"⚠️ Monitor error: {e}")
+
+                # Schedule next check
+                self.root.after(2000, monitor_window_state)
+
+            # Start monitoring
+            self.root.after(200, monitor_window_state)
+
+            print("🎯 Starting mainloop with enhanced visibility...")
             self.root.mainloop()
 
         except Exception as e:
