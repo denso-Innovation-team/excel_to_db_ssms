@@ -6,6 +6,7 @@ Enhanced Excel Processor with Column Mapping Support
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
