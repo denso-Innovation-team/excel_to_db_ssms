@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
 """
 gui/pages/settings_page.py
 Application Settings & Configuration Page - FIXED
@@ -9,9 +13,9 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-from ..components.modern_button import ModernButton
-from ..components.modern_card import ModernCard
-from ..components.modern_input import LabeledInput
+from gui.components.modern_button import ModernButton
+from gui.components.modern_card import ModernCard
+from gui.components.modern_input import LabeledInput
 
 
 class SettingsPage:

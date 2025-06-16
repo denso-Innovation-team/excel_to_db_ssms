@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
 """
 gui/pages/import_page.py
 Excel Import Page - Clean & Functional
@@ -7,9 +11,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from pathlib import Path
 
-from ..components.modern_button import ModernButton, ActionButton
-from ..components.modern_input import FileSelector, LabeledInput
-from ..components.modern_card import ModernCard
+from gui.components.modern_button import ModernButton, ActionButton
+from gui.components.modern_input import FileSelector, LabeledInput
+from gui.components.modern_card import ModernCard
 
 
 class ImportPage:

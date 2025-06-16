@@ -7,9 +7,9 @@ from typing import Dict, Any, Callable, List
 from datetime import datetime
 import threading
 
-from ..services.database_service import DatabaseService
-from ..services.excel_service import ExcelService
-from ..services.notification_service import NotificationService
+from services.database_service import DatabaseService
+from services.excel_service import ExcelService
+from services.notification_service import NotificationService
 
 
 class AppController:

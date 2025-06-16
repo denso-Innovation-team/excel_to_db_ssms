@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
 """
 gui/pages/database_page.py
 Database Configuration Page
@@ -7,9 +11,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
-from ..components.modern_button import ModernButton, ActionButton
-from ..components.modern_input import LabeledInput, ModernCombobox
-from ..components.modern_card import ModernCard, StatCard
+from gui.components.modern_button import ModernButton, ActionButton
+from gui.components.modern_input import LabeledInput, ModernCombobox
+from gui.components.modern_card import ModernCard, StatCard
 
 
 class DatabasePage:

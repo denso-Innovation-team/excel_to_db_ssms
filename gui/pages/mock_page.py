@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
 """
 gui/pages/mock_page.py
 Mock Data Generation Page
@@ -7,9 +11,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 
-from ..components.modern_button import ModernButton, ActionButton
-from ..components.modern_input import LabeledInput
-from ..components.modern_card import ModernCard, ClickableCard
+from gui.components.modern_button import ModernButton, ActionButton
+from gui.components.modern_input import LabeledInput
+from gui.components.modern_card import ModernCard, ClickableCard
 
 
 class MockPage:

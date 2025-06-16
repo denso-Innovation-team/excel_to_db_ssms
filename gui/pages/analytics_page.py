@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
 """
 gui/pages/analytics_page.py
 Analytics & Reporting Page
@@ -8,9 +12,9 @@ from tkinter import ttk, messagebox
 import threading
 from datetime import datetime
 
-from ..components.modern_button import ModernButton
-from ..components.modern_card import ModernCard, StatCard
-from ..components.modern_input import ModernCombobox
+from gui.components.modern_button import ModernButton
+from gui.components.modern_card import ModernCard, StatCard
+from gui.components.modern_input import ModernCombobox
 
 
 class AnalyticsPage:

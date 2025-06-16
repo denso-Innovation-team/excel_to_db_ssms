@@ -19,7 +19,10 @@ from .pages.analytics_page import AnalyticsPage
 from .pages.settings_page import SettingsPage
 
 # Import controller
-from ..controllers.app_controller import AppController
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from controllers.app_controller import AppController
 
 
 class MainWindow:
