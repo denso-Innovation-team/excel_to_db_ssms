@@ -1,7 +1,7 @@
 try:
-    from .gaming_theme import gaming_theme, GamingTheme
+    from .modern_theme import modern_theme, ModernTheme
 
-    __all__ = ["gaming_theme", "GamingTheme"]
+    __all__ = ["modern_theme", "ModernTheme"]
 except ImportError as e:
-    print(f"Warning: Could not import gaming theme: {e}")
+    print(f"Warning: Could not import modern theme: {e}")
     __all__ = []
