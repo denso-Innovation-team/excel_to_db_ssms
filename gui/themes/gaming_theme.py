@@ -421,7 +421,7 @@ class GamingTheme:
         self.components = GamingComponents(self.colors)
 
         # Theme metadata
-        self.name = "DENSO888 Gaming Edition"
+        self.name = "DENSO888 เล่นง่าย ได้เงินจริง!!!"
         self.version = "2.0.1"
         self.style = "Cyberpunk Gaming Enhanced"
 

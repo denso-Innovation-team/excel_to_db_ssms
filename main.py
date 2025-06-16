@@ -1,5 +1,5 @@
 """
-main.py - DENSO888 Gaming Edition Entry Point - Fixed Version
+main.py - DENSO888 เล่นง่าย ได้เงินจริง!!! Entry Point - Fixed Version
 เฮียตอมจัดหั้ย!!! 🎮🚀
 """
 
@@ -19,10 +19,10 @@ sys.path.insert(0, str(project_root))
 
 
 def main():
-    """Main entry point for DENSO888 Gaming Edition"""
+    """Main entry point for DENSO888 เล่นง่าย ได้เงินจริง!!!"""
     try:
         print("🎮" + "=" * 60)
-        print("🏭 DENSO888 GAMING EDITION v2.0.0")
+        print("🏭 DENSO888 เล่นง่าย ได้เงินจริง!!! v2.0.0")
         print("📊 Excel to SQL Management System")
         print("👨‍💻 Created by: Thammaphon Chittasuwanna (SDM)")
         print("🏢 Innovation Department | DENSO Corporation")
@@ -58,7 +58,7 @@ def main():
             print("   Please install with: pip install -r requirements.txt")
             return
 
-        print("🚀 Loading DENSO888 Gaming Edition...")
+        print("🚀 Loading DENSO888 เล่นง่าย ได้เงินจริง!!!...")
         print()
 
         # Create required directories
@@ -75,7 +75,7 @@ def main():
 
     except KeyboardInterrupt:
         print("\n⚠️  Application interrupted by user")
-        print("👋 Thanks for using DENSO888 Gaming Edition!")
+        print("👋 Thanks for using DENSO888 เล่นง่าย ได้เงินจริง!!!!")
 
     except ImportError as e:
         print(f"❌ Import Error: {e}")
@@ -146,7 +146,7 @@ def emergency_fallback():
     def show_info():
         messagebox.showinfo(
             "DENSO888 Info",
-            "DENSO888 Gaming Edition v2.0.0\n\n"
+            "DENSO888 เล่นง่าย ได้เงินจริง!!! v2.0.0\n\n"
             "Excel to SQL Management System\n"
             "Created by: Thammaphon Chittasuwanna (SDM)\n"
             "Department: Innovation Department\n"
@@ -222,7 +222,7 @@ def show_startup_banner():
     """Show startup banner"""
     banner = """
     🎮 ╔══════════════════════════════════════════════════════════╗
-    🏭 ║                 DENSO888 GAMING EDITION                  ║
+    🏭 ║                 DENSO888 เล่นง่าย ได้เงินจริง!!!                  ║
     📊 ║              Excel to SQL Management System              ║
     ⚡ ║                                                          ║
     🎯 ║  🚀 Level up your data management skills!               ║
