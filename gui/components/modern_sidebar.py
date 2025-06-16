@@ -697,3 +697,426 @@ class NotificationSystem:
             except:
                 pass
         self.notifications.clear()
+
+
+"""
+gui/components/modern_sidebar.py
+Modern Sidebar Component - Complete Working Version
+"""
+
+import tkinter as tk
+from typing import List, Dict, Any, Callable, Optional
+from datetime import datetime
+
+
+class ModernSidebar:
+    """Modern sidebar with navigation menu"""
+
+    def __init__(
+        self,
+        parent: tk.Widget,
+        menu_items: List[Dict[str, Any]],
+        callback: Callable[[str], None],
+        theme=None,
+    ):
+        self.parent = parent
+        self.menu_items = menu_items
+        self.callback = callback
+        self.theme = theme or self._get_default_theme()
+        self.current_selection = None
+        self.menu_buttons = {}
+
+        self.widget = None
+        self._create_sidebar()
+
+    def _get_default_theme(self):
+        """Get default theme"""
+
+        class DefaultTheme:
+            class colors:
+                white = "#FFFFFF"
+                gray_50 = "#F9FAFB"
+                gray_100 = "#F3F4F6"
+                gray_200 = "#E5E7EB"
+                gray_600 = "#4B5563"
+                gray_900 = "#111827"
+                primary = "#2563EB"
+                primary_light = "#DBEAFE"
+
+        return DefaultTheme()
+
+    def _create_sidebar(self):
+        """Create sidebar widget"""
+        # Main sidebar frame
+        self.widget = tk.Frame(
+            self.parent, bg=self.theme.colors.gray_50, width=280, relief="flat", bd=0
+        )
+        self.widget.pack_propagate(False)
+
+        # Header section
+        self._create_header()
+
+        # Navigation menu
+        self._create_navigation()
+
+        # Footer section
+        self._create_footer()
+
+    def _create_header(self):
+        """Create sidebar header"""
+        header_frame = tk.Frame(self.widget, bg=self.theme.colors.gray_50, height=100)
+        header_frame.pack(fill="x", padx=20, pady=20)
+        header_frame.pack_propagate(False)
+
+        # App logo/title
+        title_label = tk.Label(
+            header_frame,
+            text="🏭 DENSO888",
+            font=("Segoe UI", 18, "bold"),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.primary,
+        )
+        title_label.pack(anchor="w")
+
+        # Subtitle
+        subtitle_label = tk.Label(
+            header_frame,
+            text="Modern Edition",
+            font=("Segoe UI", 11),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.gray_600,
+        )
+        subtitle_label.pack(anchor="w", pady=(2, 0))
+
+        # User info
+        user_label = tk.Label(
+            header_frame,
+            text="👨‍💻 เฮียตอม | Innovation Dept.",
+            font=("Segoe UI", 10),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.gray_600,
+        )
+        user_label.pack(anchor="w", pady=(10, 0))
+
+    def _create_navigation(self):
+        """Create navigation menu"""
+        nav_frame = tk.Frame(self.widget, bg=self.theme.colors.gray_50)
+        nav_frame.pack(fill="both", expand=True, padx=10)
+
+        # Menu title
+        menu_title = tk.Label(
+            nav_frame,
+            text="NAVIGATION",
+            font=("Segoe UI", 9, "bold"),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.gray_600,
+        )
+        menu_title.pack(anchor="w", padx=10, pady=(0, 10))
+
+        # Menu items
+        for item in self.menu_items:
+            self._create_menu_item(nav_frame, item)
+
+    def _create_menu_item(self, parent: tk.Widget, item: Dict[str, Any]):
+        """Create individual menu item"""
+        item_id = item["id"]
+
+        # Menu button frame
+        btn_frame = tk.Frame(parent, bg=self.theme.colors.gray_50)
+        btn_frame.pack(fill="x", pady=2)
+
+        # Main button
+        button = tk.Button(
+            btn_frame,
+            text="",
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.gray_900,
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            command=lambda: self._on_menu_click(item_id),
+            anchor="w",
+            padx=15,
+            pady=12,
+        )
+        button.pack(fill="x")
+
+        # Button content frame
+        content_frame = tk.Frame(button, bg=self.theme.colors.gray_50)
+        content_frame.pack(fill="x")
+
+        # Icon and text container
+        main_content = tk.Frame(content_frame, bg=self.theme.colors.gray_50)
+        main_content.pack(fill="x")
+
+        # Icon
+        icon_label = tk.Label(
+            main_content,
+            text=item.get("icon", "📋"),
+            font=("Segoe UI", 16),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.primary,
+        )
+        icon_label.pack(side="left", padx=(0, 12))
+
+        # Text container
+        text_container = tk.Frame(main_content, bg=self.theme.colors.gray_50)
+        text_container.pack(side="left", fill="x", expand=True)
+
+        # Title
+        title_label = tk.Label(
+            text_container,
+            text=item.get("title", "Menu Item"),
+            font=("Segoe UI", 12, "bold"),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.gray_900,
+            anchor="w",
+        )
+        title_label.pack(fill="x")
+
+        # Description
+        if item.get("description"):
+            desc_label = tk.Label(
+                text_container,
+                text=item["description"],
+                font=("Segoe UI", 9),
+                bg=self.theme.colors.gray_50,
+                fg=self.theme.colors.gray_600,
+                anchor="w",
+            )
+            desc_label.pack(fill="x")
+
+        # Store references
+        button.content_frame = content_frame
+        button.icon_label = icon_label
+        button.title_label = title_label
+        button.main_content = main_content
+        button.text_container = text_container
+
+        self.menu_buttons[item_id] = button
+
+        # Hover effects
+        self._setup_hover_effects(button, item_id)
+
+    def _setup_hover_effects(self, button: tk.Button, item_id: str):
+        """Setup hover effects for menu item"""
+
+        def on_enter(event):
+            if item_id != self.current_selection:
+                self._update_button_colors(button, self.theme.colors.gray_100)
+
+        def on_leave(event):
+            if item_id != self.current_selection:
+                self._update_button_colors(button, self.theme.colors.gray_50)
+
+        button.bind("<Enter>", on_enter)
+        button.bind("<Leave>", on_leave)
+
+    def _update_button_colors(self, button: tk.Button, bg_color: str):
+        """Update button colors recursively"""
+        try:
+            button.configure(bg=bg_color)
+            if hasattr(button, "content_frame"):
+                self._update_widget_bg_recursive(button.content_frame, bg_color)
+        except:
+            pass
+
+    def _update_widget_bg_recursive(self, widget, bg_color: str):
+        """Recursively update background color"""
+        try:
+            widget.configure(bg=bg_color)
+            for child in widget.winfo_children():
+                if isinstance(child, (tk.Frame, tk.Label)):
+                    self._update_widget_bg_recursive(child, bg_color)
+        except:
+            pass
+
+    def _on_menu_click(self, item_id: str):
+        """Handle menu item click"""
+        if item_id == self.current_selection:
+            return
+
+        # Update selection
+        old_selection = self.current_selection
+        self.current_selection = item_id
+
+        # Update visual state
+        self._update_selection_state(old_selection, item_id)
+
+        # Call callback
+        if self.callback:
+            try:
+                self.callback(item_id)
+            except Exception as e:
+                print(f"Menu callback error: {e}")
+
+    def _update_selection_state(self, old_id: Optional[str], new_id: str):
+        """Update visual selection state"""
+        # Reset old selection
+        if old_id and old_id in self.menu_buttons:
+            old_button = self.menu_buttons[old_id]
+            self._update_button_colors(old_button, self.theme.colors.gray_50)
+
+        # Highlight new selection
+        if new_id in self.menu_buttons:
+            new_button = self.menu_buttons[new_id]
+            self._update_button_colors(new_button, self.theme.colors.primary_light)
+
+    def _create_footer(self):
+        """Create sidebar footer"""
+        footer_frame = tk.Frame(self.widget, bg=self.theme.colors.gray_50, height=80)
+        footer_frame.pack(fill="x", side="bottom", padx=20, pady=20)
+        footer_frame.pack_propagate(False)
+
+        # Version info
+        version_label = tk.Label(
+            footer_frame,
+            text="DENSO888 v3.0",
+            font=("Segoe UI", 9),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.gray_600,
+        )
+        version_label.pack(anchor="w")
+
+        # Status
+        self.status_label = tk.Label(
+            footer_frame,
+            text="🟢 System Ready",
+            font=("Segoe UI", 9),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.gray_600,
+        )
+        self.status_label.pack(anchor="w", pady=(5, 0))
+
+        # Current time
+        self.time_label = tk.Label(
+            footer_frame,
+            text="",
+            font=("Segoe UI", 9),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.gray_600,
+        )
+        self.time_label.pack(anchor="w", pady=(5, 0))
+
+        # Update time
+        self._update_time()
+
+    def _update_time(self):
+        """Update current time display"""
+        current_time = datetime.now().strftime("%H:%M:%S")
+        if hasattr(self, "time_label"):
+            self.time_label.configure(text=current_time)
+
+        # Schedule next update
+        self.widget.after(1000, self._update_time)
+
+    def select_item(self, item_id: str):
+        """Programmatically select menu item"""
+        if item_id in self.menu_buttons:
+            self._on_menu_click(item_id)
+
+    def update_status(self, status: str, status_type: str = "info"):
+        """Update status display"""
+        status_icons = {"info": "🔵", "success": "🟢", "warning": "🟡", "error": "🔴"}
+
+        icon = status_icons.get(status_type, "🔵")
+        if hasattr(self, "status_label"):
+            self.status_label.configure(text=f"{icon} {status}")
+
+    def get_widget(self) -> tk.Widget:
+        """Get main sidebar widget"""
+        return self.widget
+
+
+class ModernStatusBar:
+    """Modern status bar component"""
+
+    def __init__(self, parent: tk.Widget, theme=None):
+        self.parent = parent
+        self.theme = theme or self._get_default_theme()
+        self.widget = None
+        self._create_status_bar()
+
+    def _get_default_theme(self):
+        """Get default theme"""
+
+        class DefaultTheme:
+            class colors:
+                gray_50 = "#F9FAFB"
+                gray_600 = "#4B5563"
+                gray_900 = "#111827"
+                success = "#10B981"
+                error = "#EF4444"
+
+        return DefaultTheme()
+
+    def _create_status_bar(self):
+        """Create status bar"""
+        self.widget = tk.Frame(
+            self.parent, bg=self.theme.colors.gray_50, height=35, relief="flat", bd=0
+        )
+        self.widget.pack_propagate(False)
+
+        # Left section - Status
+        left_frame = tk.Frame(self.widget, bg=self.theme.colors.gray_50)
+        left_frame.pack(side="left", fill="y", padx=20)
+
+        self.status_label = tk.Label(
+            left_frame,
+            text="Ready",
+            font=("Segoe UI", 10),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.gray_900,
+        )
+        self.status_label.pack(side="left", pady=8)
+
+        # Right section - Info
+        right_frame = tk.Frame(self.widget, bg=self.theme.colors.gray_50)
+        right_frame.pack(side="right", fill="y", padx=20)
+
+        # Database status
+        self.db_status = tk.Label(
+            right_frame,
+            text="🔴 Database: Disconnected",
+            font=("Segoe UI", 10),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.error,
+        )
+        self.db_status.pack(side="right", pady=8, padx=(0, 10))
+
+        # Current time
+        self.time_label = tk.Label(
+            right_frame,
+            text="",
+            font=("Segoe UI", 10),
+            bg=self.theme.colors.gray_50,
+            fg=self.theme.colors.gray_600,
+        )
+        self.time_label.pack(side="right", pady=8)
+
+        self._update_time()
+
+    def _update_time(self):
+        """Update time display"""
+        current_time = datetime.now().strftime("%H:%M:%S")
+        self.time_label.configure(text=current_time)
+        self.widget.after(1000, self._update_time)
+
+    def update_status(self, text: str, status_type: str = "info"):
+        """Update status text"""
+        self.status_label.configure(text=text)
+
+    def update_db_status(self, connected: bool):
+        """Update database status"""
+        if connected:
+            self.db_status.configure(
+                text="🟢 Database: Connected", fg=self.theme.colors.success
+            )
+        else:
+            self.db_status.configure(
+                text="🔴 Database: Disconnected", fg=self.theme.colors.error
+            )
+
+    def get_widget(self) -> tk.Widget:
+        """Get status bar widget"""
+        return self.widget
