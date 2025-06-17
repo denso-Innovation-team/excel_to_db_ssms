@@ -1,18 +1,49 @@
 """
 gui/components/modern_sidebar.py
-Fixed Sidebar Layout - แก้ปัญหา padding ซ้อนกันและ responsive layout
+Complete Sidebar Implementation - Fixed Version
 """
 
 import tkinter as tk
 from datetime import datetime
 from typing import List, Dict, Any, Callable
 
-# Import theme เดิม
+# Import theme
 import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from gui.themes.modern_theme import modern_theme
+
+try:
+    from gui.themes.modern_theme import modern_theme
+except ImportError:
+    # Fallback theme
+    class FallbackTheme:
+        class colors:
+            surface = "#FFFFFF"
+            primary = "#2563EB"
+            text_primary = "#1F2937"
+            text_secondary = "#6B7280"
+            text_tertiary = "#9CA3AF"
+            success = "#059669"
+            error = "#DC2626"
+            gray_50 = "#F8FAFC"
+            primary_light = "#DBEAFE"
+            primary_dark = "#1E40AF"
+
+        class fonts:
+            @staticmethod
+            def get(key):
+                return ("Segoe UI", 10)
+
+        class spacing:
+            sidebar_width = 280
+            header_height = 64
+            lg = 24
+            md = 16
+            sm = 8
+            xs = 4
+
+    modern_theme = FallbackTheme()
 
 
 class ModernSidebar:
@@ -36,7 +67,7 @@ class ModernSidebar:
 
     def _create_sidebar(self):
         """สร้าง sidebar ด้วย layout ที่ถูกต้อง"""
-        # Main sidebar container - ไม่มี padding ซ้อน
+        # Main sidebar container
         sidebar = tk.Frame(
             self.parent,
             bg=self.theme.colors.surface,
@@ -55,7 +86,7 @@ class ModernSidebar:
 
     def _create_brand_section(self, parent):
         """Brand section ด้วย proper spacing"""
-        # Brand container - ใช้ spacing จาก theme
+        # Brand container
         brand_frame = tk.Frame(
             parent,
             bg=self.theme.colors.surface,
@@ -64,7 +95,7 @@ class ModernSidebar:
         brand_frame.pack(fill="x")
         brand_frame.pack_propagate(False)
 
-        # Brand content - centered properly
+        # Brand content
         brand_content = tk.Frame(brand_frame, bg=self.theme.colors.surface)
         brand_content.pack(expand=True, padx=self.theme.spacing.lg)
 
@@ -120,7 +151,7 @@ class ModernSidebar:
         """สร้าง menu item ด้วย layout ที่เป็นมืออาชีพ"""
         item_id = item["id"]
 
-        # Item container - no nested padding
+        # Item container
         item_container = tk.Frame(parent, bg=self.theme.colors.surface)
         item_container.pack(fill="x", pady=1)
 
@@ -146,7 +177,7 @@ class ModernSidebar:
 
     def _setup_button_content(self, button: tk.Button, item: Dict[str, Any]):
         """Setup button content ด้วย proper layout"""
-        # Main content frame - single level padding
+        # Main content frame
         content_frame = tk.Frame(
             button,
             bg=self.theme.colors.surface,
@@ -199,11 +230,11 @@ class ModernSidebar:
         button.title_label = title_label
 
     def _setup_hover_effects(self, button: tk.Button, item_id: str):
-        """Setup hover effects แบบ performance-friendly"""
+        """Setup hover effects"""
 
         def on_enter(event):
             if item_id != self.current_selection:
-                self._update_item_colors(button, self.theme.colors.gray_100)
+                self._update_item_colors(button, self.theme.colors.gray_50)
 
         def on_leave(event):
             if item_id != self.current_selection:
@@ -213,7 +244,7 @@ class ModernSidebar:
         button.bind("<Leave>", on_leave)
 
     def _update_item_colors(self, button: tk.Button, bg_color: str):
-        """Update colors efficiently - no recursive loops"""
+        """Update colors efficiently"""
         try:
             button.configure(bg=bg_color)
 
@@ -228,10 +259,10 @@ class ModernSidebar:
                 button.title_label.configure(bg=bg_color)
 
         except tk.TclError:
-            pass  # Handle widget destruction gracefully
+            pass
 
     def _handle_nav_click(self, item_id: str):
-        """Handle navigation click ด้วย proper state management"""
+        """Handle navigation click"""
         if item_id == self.current_selection:
             return
 
@@ -313,7 +344,7 @@ class ModernSidebar:
         status_colors = {
             "info": self.theme.colors.text_secondary,
             "success": self.theme.colors.success,
-            "warning": self.theme.colors.warning,
+            "warning": "#F59E0B",
             "error": self.theme.colors.error,
         }
 
@@ -330,7 +361,6 @@ class ModernSidebar:
         return self.widget
 
 
-# Enhanced Status Bar Component
 class ModernStatusBar:
     """Professional status bar ด้วย consistent design"""
 
@@ -338,6 +368,8 @@ class ModernStatusBar:
         self.parent = parent
         self.theme = modern_theme
         self.widget = self._create_status_bar()
+        # เริ่ม time updates หลังจาก widget ถูกสร้างแล้ว
+        self._start_time_updates()
 
     def _create_status_bar(self):
         """สร้าง status bar แบบ professional"""
@@ -390,10 +422,12 @@ class ModernStatusBar:
         )
         self.time_label.pack(side="right")
 
-        # Start time updater
-        self._update_time()
-
+        # Start time updater (หลังจาก return แล้ว)
         return status_bar
+
+    def _start_time_updates(self):
+        """Start time update loop"""
+        self._update_time()
 
     def _update_time(self):
         """Update time display"""
@@ -406,7 +440,7 @@ class ModernStatusBar:
         status_colors = {
             "info": self.theme.colors.text_secondary,
             "success": self.theme.colors.success,
-            "warning": self.theme.colors.warning,
+            "warning": "#F59E0B",
             "error": self.theme.colors.error,
         }
         color = status_colors.get(status_type, status_colors["info"])
@@ -426,45 +460,3 @@ class ModernStatusBar:
     def get_widget(self) -> tk.Widget:
         """Get status bar widget"""
         return self.widget
-
-# Enhanced Layout Management - Added by Professional Patch
-        
-    def _create_sidebar(self):
-        """สร้าง sidebar ด้วย layout ที่ถูกต้อง - NO PADDING OVERLAP"""
-        sidebar = tk.Frame(
-            self.parent,
-            bg=self.theme.colors.surface,
-            width=self.theme.spacing.sidebar_width,
-            relief='flat',
-            bd=0
-        )
-        sidebar.pack_propagate(False)
-        
-        # Sections ด้วย proper spacing
-        self._create_brand_section(sidebar)
-        self._create_navigation_section(sidebar) 
-        self._create_footer_section(sidebar)
-        
-        return sidebar
-        
-    def _create_nav_item(self, parent, item):
-        """Create nav item ด้วย single-level padding"""
-        item_container = tk.Frame(parent, bg=self.theme.colors.surface)
-        item_container.pack(fill='x', pady=1)
-        
-        button = tk.Button(
-            item_container,
-            bg=self.theme.colors.surface,
-            fg=self.theme.colors.text_primary,
-            relief='flat',
-            bd=0,
-            cursor='hand2',
-            command=lambda: self._handle_nav_click(item['id']),
-            padx=self.theme.spacing.md,
-            pady=self.theme.spacing.sm
-        )
-        button.pack(fill='x')
-        
-        # Content layout - NO NESTED FRAMES
-        self._setup_button_content(button, item)
-        return button

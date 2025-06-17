@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
+<<<<<<< HEAD
 DENSO888 Excel to Database Pool System - Fixed Version
 Enhanced Excel to SQL Server Import System with Connection Pooling
 Created by: Thammaphon Chittasuwanna (SDM) | Innovation Department
 Version: 3.0.0
+=======
+main.py
+Enhanced Excel to Database Pool System Entry Point
+>>>>>>> 1f635ed4a112b37ae7a89b809261dfeb1fe63138
 """
 
 import sys
@@ -11,6 +16,7 @@ from pathlib import Path
 import logging
 from datetime import datetime
 
+<<<<<<< HEAD
 # Setup project paths FIRST
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -229,6 +235,35 @@ def main():
         print("🔧 Please check file structure and dependencies")
         input("Press Enter to exit...")
         sys.exit(1)
+=======
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from gui.enhanced_main_window import EnhancedMainWindow
+from controllers.pool_controller import PoolController
+from services.connection_pool_service import ConnectionPoolService
+from utils.logger import setup_logger
+
+
+def main():
+    """เริ่มต้นระบบ Excel to Database Pool"""
+    try:
+        # Setup logging
+        logger = setup_logger("excel_db_pool", "INFO")
+        logger.info("🚀 Starting Excel to Database Pool System...")
+
+        # Initialize services
+        pool_service = ConnectionPoolService()
+        controller = PoolController(pool_service)
+
+        # Create and run main window
+        app = EnhancedMainWindow(controller)
+        app.run()
+
+    except Exception as e:
+        print(f"❌ Failed to start application: {e}")
+        import traceback
+>>>>>>> 1f635ed4a112b37ae7a89b809261dfeb1fe63138
 
     except Exception as e:
         logger.error(f"❌ Application Error: {e}")
