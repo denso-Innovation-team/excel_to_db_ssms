@@ -1,461 +1,959 @@
 """
-gui/main_window.py
-Fixed Main Window Layout - แก้ปัญหา grid system และ content management
+Unified Main Window - Complete DENSO888 Excel to Database System
+Combines both Pool System and General Features
 """
 
 import tkinter as tk
-from typing import Dict, Any
-
-# Import ระบบเดิม + แก้ไข
-import sys
+from tkinter import ttk, filedialog, messagebox
+import threading
 from pathlib import Path
+import logging
 
-sys.path.append(str(Path(__file__).parent.parent))
-
-from gui.themes.modern_theme import modern_theme
-from gui.components.modern_sidebar import ModernSidebar, ModernStatusBar
-
-# Import pages เดิม
-from gui.pages.dashboard_page import DashboardPage
-from gui.pages.import_page import ImportPage
-from gui.pages.database_page import DatabasePage
-from gui.pages.mock_page import MockPage
-
-# Import controller เดิม
-from controllers.app_controller import AppController
+logger = logging.getLogger(__name__)
 
 
 class MainWindow:
-    """Fixed Main Window ด้วย Professional Layout Management"""
+    """Unified main window for DENSO888 system"""
 
-    def __init__(self):
+    def __init__(self, controller=None, pool_controller=None):
+        # Support both controllers
+        self.controller = controller  # Original app controller
+        self.pool_controller = pool_controller  # Pool controller
+
         self.root = tk.Tk()
-        self.theme = modern_theme
-        self.controller = AppController()
-        self.current_page = None
-        self.pages = {}
+        self.setup_window()
+        self.create_widgets()
+        self.setup_events()
 
-        # Setup application
-        self._setup_window()
-        self._create_layout()
-        self._initialize_pages()
-        self._setup_event_handlers()
+        # State variables
+        self.connected = False
+        self.excel_loaded = False
+        self.import_in_progress = False
 
-        # Show initial page
-        self._show_page("dashboard")
+    def setup_window(self):
+        """Configure main window"""
+        self.root.title("🏭 DENSO888 Professional - Excel to Database System v3.0")
+        self.root.geometry("1400x900")
+        self.root.minsize(1200, 700)
 
-    def _setup_window(self):
-        """Configure main window ด้วย responsive design"""
-        self.root.title("🏭 DENSO888 Professional Edition")
-        self.root.configure(bg=self.theme.colors.gray_50)
+        # Configure grid
+        self.root.grid_rowconfigure(1, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
 
-        # Calculate optimal window size
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-
-        # Responsive sizing
-        window_width = min(1400, int(screen_width * 0.85))
-        window_height = min(900, int(screen_height * 0.85))
-
-        # Center window
-        x = (screen_width - window_width) // 2
-        y = (screen_height - window_height) // 2
-
-        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
-        self.root.minsize(1200, 800)
-
-        # Configure main grid - NO overlapping layouts
-        self.root.grid_rowconfigure(1, weight=1)  # Content area grows
-        self.root.grid_columnconfigure(1, weight=1)  # Content area grows
-
-    def _create_layout(self):
-        """Create main layout ด้วย Grid System ที่เป็นระบบ"""
-
-        # 1. Header (row=0, colspan=2)
-        self._create_header()
-
-        # 2. Sidebar (row=1, col=0)
-        self._create_sidebar()
-
-        # 3. Content Area (row=1, col=1)
-        self._create_content_area()
-
-        # 4. Status Bar (row=2, colspan=2)
-        self._create_status_bar()
-
-    def _create_header(self):
-        """Create application header ด้วย consistent styling"""
-        header = tk.Frame(
-            self.root,
-            bg=self.theme.colors.surface,
-            height=self.theme.spacing.header_height,
-            relief="flat",
-            bd=0,
-        )
-        header.grid(row=0, column=0, columnspan=2, sticky="ew")
-        header.pack_propagate(False)
-
-        # Header content ด้วย proper padding
-        header_content = tk.Frame(
-            header,
-            bg=self.theme.colors.surface,
-            padx=self.theme.spacing.lg,
-            pady=self.theme.spacing.md,
-        )
-        header_content.pack(fill="both", expand=True)
-
-        # Brand section
-        brand_frame = tk.Frame(header_content, bg=self.theme.colors.surface)
-        brand_frame.pack(side="left", fill="y")
-
-        brand_label = tk.Label(
-            brand_frame,
-            text="🏭 DENSO888 Professional",
-            font=self.theme.fonts.get("heading_lg"),
-            bg=self.theme.colors.surface,
-            fg=self.theme.colors.primary,
-        )
-        brand_label.pack(expand=True)
-
-        # User section
-        user_frame = tk.Frame(header_content, bg=self.theme.colors.surface)
-        user_frame.pack(side="right", fill="y")
-
-        user_label = tk.Label(
-            user_frame,
-            text="👨‍💻 เฮียตอม | Innovation Dept.",
-            font=self.theme.fonts.get("body_md"),
-            bg=self.theme.colors.surface,
-            fg=self.theme.colors.text_secondary,
-        )
-        user_label.pack(expand=True)
-
-    def _create_sidebar(self):
-        """Create navigation sidebar ด้วย proper integration"""
-        nav_items = [
-            {
-                "id": "dashboard",
-                "title": "Dashboard",
-                "description": "Overview & Analytics",
-                "icon": "📊",
-            },
-            {
-                "id": "import",
-                "title": "Import Data",
-                "description": "Excel to Database",
-                "icon": "📁",
-            },
-            {
-                "id": "database",
-                "title": "Database",
-                "description": "Connection Setup",
-                "icon": "🗄️",
-            },
-            {
-                "id": "mock",
-                "title": "Mock Data",
-                "description": "Generate Test Data",
-                "icon": "🎲",
-            },
-        ]
-
-        # Create sidebar instance
-        self.sidebar = ModernSidebar(self.root, nav_items, self._navigate_to)
-        sidebar_widget = self.sidebar.get_widget()
-        sidebar_widget.grid(row=1, column=0, sticky="nsew")
-
-    def _create_content_area(self):
-        """Create main content area ด้วย proper container management"""
-        # Content container - NO nested padding/margin issues
-        self.content_container = tk.Frame(
-            self.root,
-            bg=self.theme.colors.gray_50,
-            padx=self.theme.spacing.content_padding,
-            pady=self.theme.spacing.content_padding,
-        )
-        self.content_container.grid(row=1, column=1, sticky="nsew")
-
-        # Configure content area to grow
-        self.content_container.grid_rowconfigure(0, weight=1)
-        self.content_container.grid_columnconfigure(0, weight=1)
-
-    def _create_status_bar(self):
-        """Create status bar ด้วย modern design"""
-        self.status_bar = ModernStatusBar(self.root)
-        status_widget = self.status_bar.get_widget()
-        status_widget.grid(row=2, column=0, columnspan=2, sticky="ew")
-
-    def _initialize_pages(self):
-        """Initialize all page instances ด้วย proper container"""
-        # สร้าง pages ที่ใช้ content_container เป็น parent
-        self.pages = {
-            "dashboard": DashboardPage(self.content_container, self.controller),
-            "import": ImportPage(self.content_container, self.controller),
-            "database": DatabasePage(self.content_container, self.controller),
-            "mock": MockPage(self.content_container, self.controller),
-        }
-
-    def _setup_event_handlers(self):
-        """Setup event handlers และ subscriptions"""
-        # Subscribe to controller events
+        # Set window icon
         try:
-            self.controller.subscribe("status_changed", self._update_status)
-            self.controller.subscribe("db_status_changed", self._update_db_status)
-            self.controller.subscribe("notification", self._show_notification)
-        except AttributeError:
-            # Fallback if controller doesn't have subscribe method
-            print("Warning: Controller doesn't support event subscription")
+            self.root.iconbitmap("assets/icon.ico")
+        except:
+            pass
 
-    def _navigate_to(self, page_id: str):
-        """Navigate to specific page ด้วย proper state management"""
-        if page_id == self.current_page:
-            return
+    def create_widgets(self):
+        """Create and layout all widgets"""
+        # Main container
+        main_frame = ttk.Frame(self.root, padding="5")
+        main_frame.grid(row=0, column=0, sticky="nsew", rowspan=2)
+        main_frame.grid_rowconfigure(1, weight=1)
+        main_frame.grid_columnconfigure(0, weight=1)
 
-        # Hide current page
-        if self.current_page and self.current_page in self.pages:
-            try:
-                self.pages[self.current_page].hide()
-            except AttributeError:
-                # Handle pages that don't have hide method
-                self.pages[self.current_page].get_widget().grid_forget()
+        # Header with status
+        self.create_header(main_frame)
 
-        # Show new page
-        if page_id in self.pages:
-            try:
-                self.pages[page_id].show()
-            except AttributeError:
-                # Handle pages that don't have show method
-                self.pages[page_id].get_widget().grid(row=0, column=0, sticky="nsew")
+        # Main notebook with all tabs
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
 
-            self.current_page = page_id
+        # Create all tabs
+        self.create_pool_tabs()  # Pool system tabs
+        self.create_general_tabs()  # General system tabs
 
-            # Update sidebar selection
-            self.sidebar.select_item(page_id)
+        # Status bar
+        self.create_status_bar()
 
-            # Update status
-            page_titles = {
-                "dashboard": "📊 Dashboard",
-                "import": "📁 Import Data",
-                "database": "🗄️ Database",
-                "mock": "🎲 Mock Data",
-            }
-
-            title = page_titles.get(page_id, "Page")
-            self.status_bar.update_status(f"Viewing {title}")
-
-    def _show_page(self, page_id: str):
-        """Show specific page (initial load)"""
-        self._navigate_to(page_id)
-
-    def _update_status(self, status_data: Dict[str, Any]):
-        """Update status bar from controller events"""
-        try:
-            status_text = status_data.get("text", "Ready")
-            status_type = status_data.get("type", "info")
-            self.status_bar.update_status(status_text, status_type)
-        except Exception as e:
-            print(f"Status update error: {e}")
-
-    def _update_db_status(self, connected: bool):
-        """Update database status"""
-        try:
-            self.status_bar.update_db_status(connected)
-
-            # Update sidebar status
-            if connected:
-                self.sidebar.update_status("Database Connected", "success")
-            else:
-                self.sidebar.update_status("Database Disconnected", "error")
-        except Exception as e:
-            print(f"DB status update error: {e}")
-
-    def _show_notification(self, notification_data: Dict[str, Any]):
-        """Show notification (fallback to console if modern notification not available)"""
-        try:
-            # Try to use modern notification
-            from gui.components.modern_notification import ModernNotification
-
-            message = notification_data.get("message", "")
-            type_ = notification_data.get("type", "info")
-            duration = notification_data.get("duration", 3000)
-            ModernNotification.show(self.root, message, type_, duration)
-        except ImportError:
-            # Fallback to status bar
-            message = notification_data.get("message", "")
-            type_ = notification_data.get("type", "info")
-            self.status_bar.update_status(message, type_)
-
-    def run(self):
-        """Start the application ด้วย proper error handling"""
-        try:
-            print("🎨 Starting DENSO888 Professional Edition...")
-            print("Fixed Layout System - Professional UI/UX")
-            print("=" * 60)
-
-            # Show welcome notification
-            self.root.after(
-                1000,
-                lambda: self.status_bar.update_status(
-                    "Welcome to DENSO888 Professional Edition!", "success"
-                ),
-            )
-
-            # Handle window closing
-            self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
-
-            # Start main loop
-            self.root.mainloop()
-
-        except Exception as e:
-            print(f"❌ Application error: {e}")
-            import traceback
-
-            traceback.print_exc()
-
-    def _on_closing(self):
-        """Handle application closing"""
-        from tkinter import messagebox
-
-        result = messagebox.askyesno(
-            "Exit Application", "Are you sure you want to exit DENSO888 Professional?"
-        )
-
-        if result:
-            print("👋 Thanks for using DENSO888 Professional Edition!")
-
-            # Clean up resources
-            try:
-                if hasattr(self.controller, "close"):
-                    self.controller.close()
-            except:
-                pass
-
-            self.root.destroy()
-
-
-# Enhanced Page Base Class for consistent styling
-class BasePage:
-    """Base class สำหรับ pages ด้วย consistent layout"""
-
-    def __init__(self, parent, controller=None):
-        self.parent = parent
-        self.controller = controller
-        self.theme = modern_theme
-        self.main_frame = None
-
-    def create_page_header(self, title: str, subtitle: str = ""):
-        """Create consistent page header"""
-        header_frame = tk.Frame(self.main_frame, bg=self.theme.colors.gray_50)
-        header_frame.pack(fill="x", pady=(0, self.theme.spacing.lg))
+    def create_header(self, parent):
+        """Create header with title and connection status"""
+        header_frame = ttk.Frame(parent)
+        header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        header_frame.grid_columnconfigure(1, weight=1)
 
         # Title
-        title_label = tk.Label(
+        title_label = ttk.Label(
             header_frame,
-            text=title,
-            font=self.theme.fonts.get("heading_xl"),
-            bg=self.theme.colors.gray_50,
-            fg=self.theme.colors.text_primary,
+            text="🏭 DENSO888 Professional - Excel to Database System",
+            font=("Arial", 14, "bold"),
         )
-        title_label.pack(anchor="w")
+        title_label.grid(row=0, column=0, sticky="w")
 
-        # Subtitle
-        if subtitle:
-            subtitle_label = tk.Label(
-                header_frame,
-                text=subtitle,
-                font=self.theme.fonts.get("body_lg"),
-                bg=self.theme.colors.gray_50,
-                fg=self.theme.colors.text_secondary,
-            )
-            subtitle_label.pack(anchor="w", pady=(4, 0))
+        # Connection status frame
+        status_frame = ttk.Frame(header_frame)
+        status_frame.grid(row=0, column=1, sticky="e")
 
-        return header_frame
-
-    def create_card(self, title: str = None) -> tk.Widget:
-        """Create consistent card component"""
-        card_frame = tk.Frame(self.main_frame, **self.theme.get_card_style())
-
-        if title:
-            title_label = tk.Label(
-                card_frame,
-                text=title,
-                font=self.theme.fonts.get("heading_md"),
-                bg=self.theme.colors.surface,
-                fg=self.theme.colors.text_primary,
-            )
-            title_label.pack(anchor="w", pady=(0, self.theme.spacing.md))
-
-        return card_frame
-
-    def show(self):
-        """Show page method"""
-        if self.main_frame:
-            self.main_frame.grid(row=0, column=0, sticky="nsew")
-
-    def hide(self):
-        """Hide page method"""
-        if self.main_frame:
-            self.main_frame.grid_forget()
-
-    def get_widget(self) -> tk.Widget:
-        """Get main widget"""
-        return self.main_frame
-
-
-# Quick Fix Script Runner
-def apply_layout_fixes():
-    """Apply all layout fixes to existing system"""
-    print("🔧 Applying DENSO888 Professional Layout Fixes...")
-    print("=" * 50)
-
-    # Step 1: Backup current system
-    print("1. Creating backup...")
-    backup_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # Step 2: Apply theme fixes
-    print("2. Updating theme system...")
-
-    # Step 3: Apply sidebar fixes
-    print("3. Fixing sidebar layout...")
-
-    # Step 4: Apply main window fixes
-    print("4. Updating main window...")
-
-    # Step 5: Test integration
-    print("5. Testing integration...")
-
-    print("✅ Layout fixes applied successfully!")
-    print("🚀 DENSO888 Professional Edition is ready!")
-
-
-if __name__ == "__main__":
-    # Run the application with fixes
-    try:
-        app = MainWindow()
-        app.run()
-    except Exception as e:
-        print(f"Error running application: {e}")
-        apply_layout_fixes()
-
-
-# Enhanced Grid Layout - Added by Professional Patch
-    def setup_professional_grid(self):
-        """Setup grid ด้วย proper weight distribution"""
-        # NO overlapping containers
-        self.root.grid_rowconfigure(1, weight=1)  # Content grows
-        self.root.grid_columnconfigure(1, weight=1)  # Content grows
-        
-        # Header: row=0, colspan=2 
-        # Sidebar: row=1, col=0
-        # Content: row=1, col=1  
-        # Status: row=2, colspan=2
-        
-    def create_content_area_fixed(self):
-        """Content area ด้วย single-level padding"""
-        self.content_container = tk.Frame(
-            self.root,
-            bg=self.theme.colors.gray_50,
-            padx=self.theme.spacing.content_padding,
-            pady=self.theme.spacing.content_padding
+        self.conn_status = ttk.Label(
+            status_frame, text="🔴 Disconnected", foreground="red"
         )
-        self.content_container.grid(row=1, column=1, sticky='nsew')
+        self.conn_status.pack(side="right", padx=(10, 0))
+
+        # Mode indicator
+        self.mode_label = ttk.Label(status_frame, text="Pool Mode", foreground="blue")
+        self.mode_label.pack(side="right", padx=(10, 0))
+
+    def create_pool_tabs(self):
+        """Create Pool System specific tabs"""
+
+        # 1. DATABASE CONNECTION TAB
+        conn_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(conn_frame, text="🔗 Database")
+
+        # Database type selection
+        type_frame = ttk.LabelFrame(conn_frame, text="Database Type", padding="10")
+        type_frame.pack(fill="x", pady=(0, 10))
+
+        self.db_type = tk.StringVar(value="sqlite")
+        ttk.Radiobutton(
+            type_frame,
+            text="SQLite (Local File)",
+            variable=self.db_type,
+            value="sqlite",
+            command=self.on_db_type_change,
+        ).pack(anchor="w")
+        ttk.Radiobutton(
+            type_frame,
+            text="SQL Server (SSMS)",
+            variable=self.db_type,
+            value="sqlserver",
+            command=self.on_db_type_change,
+        ).pack(anchor="w")
+
+        # Connection details
+        self.conn_details_frame = ttk.LabelFrame(
+            conn_frame, text="Connection Details", padding="10"
+        )
+        self.conn_details_frame.pack(fill="x", pady=(0, 10))
+        self.create_connection_fields()
+
+        # Connection buttons
+        conn_btn_frame = ttk.Frame(conn_frame)
+        conn_btn_frame.pack(fill="x")
+
+        ttk.Button(
+            conn_btn_frame, text="Test Connection", command=self.test_connection
+        ).pack(side="left", padx=(0, 10))
+        ttk.Button(conn_btn_frame, text="Connect", command=self.connect_database).pack(
+            side="left", padx=(0, 10)
+        )
+        ttk.Button(
+            conn_btn_frame, text="Disconnect", command=self.disconnect_database
+        ).pack(side="left")
+
+        # 2. EXCEL FILE TAB
+        excel_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(excel_frame, text="📊 Excel File")
+
+        # File selection
+        file_frame = ttk.LabelFrame(excel_frame, text="Select Excel File", padding="10")
+        file_frame.pack(fill="x", pady=(0, 10))
+
+        file_input_frame = ttk.Frame(file_frame)
+        file_input_frame.pack(fill="x")
+
+        self.excel_path = tk.StringVar()
+        ttk.Entry(file_input_frame, textvariable=self.excel_path).pack(
+            side="left", fill="x", expand=True
+        )
+        ttk.Button(file_input_frame, text="Browse", command=self.browse_excel).pack(
+            side="right", padx=(10, 0)
+        )
+
+        # Load button
+        ttk.Button(
+            file_frame, text="Load & Analyze File", command=self.load_excel
+        ).pack(pady=(10, 0))
+
+        # File info display
+        info_frame = ttk.LabelFrame(excel_frame, text="File Information", padding="10")
+        info_frame.pack(fill="both", expand=True)
+
+        self.excel_info_text = tk.Text(
+            info_frame, height=20, state="disabled", wrap="word"
+        )
+        info_scroll = ttk.Scrollbar(
+            info_frame, orient="vertical", command=self.excel_info_text.yview
+        )
+        self.excel_info_text.configure(yscrollcommand=info_scroll.set)
+
+        self.excel_info_text.pack(side="left", fill="both", expand=True)
+        info_scroll.pack(side="right", fill="y")
+
+        # 3. FIELD MAPPING TAB
+        mapping_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(mapping_frame, text="🔗 Field Mapping")
+
+        # Table selection
+        table_frame = ttk.LabelFrame(mapping_frame, text="Target Table", padding="10")
+        table_frame.pack(fill="x", pady=(0, 10))
+
+        table_select_frame = ttk.Frame(table_frame)
+        table_select_frame.pack(fill="x")
+
+        self.target_table = tk.StringVar()
+        self.table_combo = ttk.Combobox(
+            table_select_frame, textvariable=self.target_table, state="readonly"
+        )
+        self.table_combo.pack(side="left", fill="x", expand=True)
+        self.table_combo.bind("<<ComboboxSelected>>", self.on_table_select)
+
+        ttk.Button(
+            table_select_frame, text="Refresh", command=self.refresh_tables
+        ).pack(side="right", padx=(10, 0))
+
+        # Mapping display
+        map_frame = ttk.LabelFrame(mapping_frame, text="Column Mappings", padding="10")
+        map_frame.pack(fill="both", expand=True, pady=(0, 10))
+
+        # Mapping treeview
+        columns = ("excel_column", "db_column", "data_type", "sample_data")
+        self.mapping_tree = ttk.Treeview(
+            map_frame, columns=columns, show="headings", height=15
+        )
+
+        self.mapping_tree.heading("excel_column", text="Excel Column")
+        self.mapping_tree.heading("db_column", text="Database Column")
+        self.mapping_tree.heading("data_type", text="Data Type")
+        self.mapping_tree.heading("sample_data", text="Sample Data")
+
+        self.mapping_tree.column("excel_column", width=200)
+        self.mapping_tree.column("db_column", width=200)
+        self.mapping_tree.column("data_type", width=100)
+        self.mapping_tree.column("sample_data", width=250)
+
+        map_scroll = ttk.Scrollbar(
+            map_frame, orient="vertical", command=self.mapping_tree.yview
+        )
+        self.mapping_tree.configure(yscrollcommand=map_scroll.set)
+
+        self.mapping_tree.pack(side="left", fill="both", expand=True)
+        map_scroll.pack(side="right", fill="y")
+
+        # Mapping control buttons
+        map_btn_frame = ttk.Frame(mapping_frame)
+        map_btn_frame.pack(fill="x")
+
+        ttk.Button(
+            map_btn_frame, text="Auto Map Fields", command=self.auto_map_fields
+        ).pack(side="left", padx=(0, 10))
+        ttk.Button(
+            map_btn_frame, text="Clear Mappings", command=self.clear_mappings
+        ).pack(side="left", padx=(0, 10))
+        ttk.Button(
+            map_btn_frame, text="Validate Mappings", command=self.validate_mappings
+        ).pack(side="left")
+
+        # 4. IMPORT DATA TAB
+        import_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(import_frame, text="⬆️ Import Data")
+
+        # Import options
+        options_frame = ttk.LabelFrame(
+            import_frame, text="Import Options", padding="10"
+        )
+        options_frame.pack(fill="x", pady=(0, 10))
+
+        options_grid = ttk.Frame(options_frame)
+        options_grid.pack(fill="x")
+
+        ttk.Label(options_grid, text="Batch Size:").grid(
+            row=0, column=0, sticky="w", padx=(0, 10)
+        )
+        self.batch_size = tk.StringVar(value="1000")
+        ttk.Entry(options_grid, textvariable=self.batch_size, width=10).grid(
+            row=0, column=1, sticky="w"
+        )
+
+        ttk.Label(options_grid, text="Import Mode:").grid(
+            row=0, column=2, sticky="w", padx=(20, 10)
+        )
+        self.import_mode = tk.StringVar(value="append")
+        mode_combo = ttk.Combobox(
+            options_grid,
+            textvariable=self.import_mode,
+            values=["append", "replace", "update"],
+            state="readonly",
+            width=10,
+        )
+        mode_combo.grid(row=0, column=3, sticky="w")
+
+        # Progress section
+        progress_frame = ttk.LabelFrame(
+            import_frame, text="Import Progress", padding="10"
+        )
+        progress_frame.pack(fill="x", pady=(0, 10))
+
+        self.progress_var = tk.DoubleVar()
+        self.progress_bar = ttk.Progressbar(
+            progress_frame, variable=self.progress_var, maximum=100, length=400
+        )
+        self.progress_bar.pack(fill="x", pady=(0, 5))
+
+        self.progress_label = ttk.Label(progress_frame, text="Ready to import")
+        self.progress_label.pack()
+
+        # Import controls
+        import_btn_frame = ttk.Frame(import_frame)
+        import_btn_frame.pack(fill="x", pady=(0, 10))
+
+        self.import_btn = ttk.Button(
+            import_btn_frame,
+            text="🚀 Start Import",
+            command=self.start_import,
+            style="Accent.TButton",
+        )
+        self.import_btn.pack(side="left", padx=(0, 10))
+
+        ttk.Button(
+            import_btn_frame, text="📊 Preview Data", command=self.preview_import
+        ).pack(side="left")
+
+        # Results display
+        results_frame = ttk.LabelFrame(
+            import_frame, text="Import Results", padding="10"
+        )
+        results_frame.pack(fill="both", expand=True)
+
+        self.results_text = tk.Text(
+            results_frame, height=10, state="disabled", wrap="word"
+        )
+        results_scroll = ttk.Scrollbar(
+            results_frame, orient="vertical", command=self.results_text.yview
+        )
+        self.results_text.configure(yscrollcommand=results_scroll.set)
+
+        self.results_text.pack(side="left", fill="both", expand=True)
+        results_scroll.pack(side="right", fill="y")
+
+    def create_general_tabs(self):
+        """Create general system tabs"""
+
+        # MOCK DATA TAB (from original system)
+        mock_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(mock_frame, text="🎲 Mock Data")
+
+        mock_info = ttk.Label(
+            mock_frame,
+            text="Mock Data Generator\nGenerate realistic test data for development",
+            font=("Arial", 12),
+            justify="center",
+        )
+        mock_info.pack(pady=50)
+
+        ttk.Button(
+            mock_frame,
+            text="Generate Employee Data",
+            command=lambda: self.generate_mock_data("employees"),
+        ).pack(pady=10)
+        ttk.Button(
+            mock_frame,
+            text="Generate Sales Data",
+            command=lambda: self.generate_mock_data("sales"),
+        ).pack(pady=10)
+
+        # ANALYTICS TAB (placeholder)
+        analytics_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(analytics_frame, text="📈 Analytics")
+
+        analytics_info = ttk.Label(
+            analytics_frame,
+            text="Data Analytics\nAnalyze imported data and generate reports",
+            font=("Arial", 12),
+            justify="center",
+        )
+        analytics_info.pack(pady=50)
+
+        # LOGS TAB
+        logs_frame = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(logs_frame, text="📝 Logs")
+
+        self.log_text = tk.Text(logs_frame, height=25, state="disabled", wrap="word")
+        log_scroll = ttk.Scrollbar(
+            logs_frame, orient="vertical", command=self.log_text.yview
+        )
+        self.log_text.configure(yscrollcommand=log_scroll.set)
+
+        self.log_text.pack(side="left", fill="both", expand=True)
+        log_scroll.pack(side="right", fill="y")
+
+        # Load recent logs
+        self.load_recent_logs()
+
+    def create_connection_fields(self):
+        """Create connection input fields based on database type"""
+        # Clear existing widgets
+        for widget in self.conn_details_frame.winfo_children():
+            widget.destroy()
+
+        if self.db_type.get() == "sqlite":
+            ttk.Label(self.conn_details_frame, text="Database File:").grid(
+                row=0, column=0, sticky="w", pady=5
+            )
+            self.sqlite_path = tk.StringVar(value="data/denso888.db")
+            ttk.Entry(
+                self.conn_details_frame, textvariable=self.sqlite_path, width=60
+            ).grid(row=0, column=1, sticky="ew", padx=(10, 0))
+
+            self.conn_details_frame.grid_columnconfigure(1, weight=1)
+
+        else:  # SQL Server
+            ttk.Label(self.conn_details_frame, text="Server:").grid(
+                row=0, column=0, sticky="w", pady=2
+            )
+            self.server = tk.StringVar(value="localhost\\SQLEXPRESS")
+            ttk.Entry(self.conn_details_frame, textvariable=self.server, width=40).grid(
+                row=0, column=1, sticky="ew", padx=(10, 0)
+            )
+
+            ttk.Label(self.conn_details_frame, text="Database:").grid(
+                row=1, column=0, sticky="w", pady=2
+            )
+            self.database = tk.StringVar()
+            self.db_combo = ttk.Combobox(
+                self.conn_details_frame, textvariable=self.database, width=38
+            )
+            self.db_combo.grid(row=1, column=1, sticky="ew", padx=(10, 0))
+
+            ttk.Label(self.conn_details_frame, text="Username:").grid(
+                row=2, column=0, sticky="w", pady=2
+            )
+            self.username = tk.StringVar()
+            ttk.Entry(
+                self.conn_details_frame, textvariable=self.username, width=40
+            ).grid(row=2, column=1, sticky="ew", padx=(10, 0))
+
+            ttk.Label(self.conn_details_frame, text="Password:").grid(
+                row=3, column=0, sticky="w", pady=2
+            )
+            self.password = tk.StringVar()
+            ttk.Entry(
+                self.conn_details_frame, textvariable=self.password, show="*", width=40
+            ).grid(row=3, column=1, sticky="ew", padx=(10, 0))
+
+            self.conn_details_frame.grid_columnconfigure(1, weight=1)
+
+    def create_status_bar(self):
+        """Create status bar"""
+        self.status_bar = ttk.Frame(self.root)
+        self.status_bar.grid(row=2, column=0, sticky="ew", padx=5, pady=2)
+
+        self.status_text = ttk.Label(
+            self.status_bar, text="Ready - DENSO888 Professional System"
+        )
+        self.status_text.pack(side="left")
+
+        # Connection stats
+        self.stats_text = ttk.Label(self.status_bar, text="")
+        self.stats_text.pack(side="right")
+
+    def setup_events(self):
+        """Setup event handlers"""
+        if self.pool_controller:
+            self.pool_controller.register_callback(
+                "database_connected", self.on_database_connected
+            )
+            self.pool_controller.register_callback("excel_loaded", self.on_excel_loaded)
+            self.pool_controller.register_callback(
+                "import_progress", self.on_import_progress
+            )
+            self.pool_controller.register_callback(
+                "import_completed", self.on_import_completed
+            )
+            self.pool_controller.register_callback("import_error", self.on_import_error)
+
+    # Database Operations
+    def on_db_type_change(self):
+        """Handle database type change"""
+        self.create_connection_fields()
+
+    def get_connection_config(self):
+        """Get connection configuration"""
+        if self.db_type.get() == "sqlite":
+            return {"db_type": "sqlite", "sqlite_path": self.sqlite_path.get()}
+        else:
+            return {
+                "db_type": "sqlserver",
+                "host": self.server.get(),
+                "database": self.database.get(),
+                "username": self.username.get() or None,
+                "password": self.password.get() or None,
+            }
+
+    def test_connection(self):
+        """Test database connection"""
+        config = self.get_connection_config()
+        if not config:
+            return
+
+        def test_async():
+            if self.pool_controller:
+                success, message = self.pool_controller.test_database_connection(config)
+            else:
+                success, message = False, "Pool controller not available"
+            self.root.after(0, lambda: self.show_test_result(success, message))
+
+        threading.Thread(target=test_async, daemon=True).start()
+        self.update_status("Testing connection...")
+
+    def connect_database(self):
+        """Connect to database"""
+        config = self.get_connection_config()
+        if not config:
+            return
+
+        def connect_async():
+            if self.pool_controller:
+                success, message = self.pool_controller.connect_database(config)
+            else:
+                success, message = False, "Pool controller not available"
+            self.root.after(0, lambda: self.handle_connect_result(success, message))
+
+        threading.Thread(target=connect_async, daemon=True).start()
+        self.update_status("Connecting to database...")
+
+    def disconnect_database(self):
+        """Disconnect from database"""
+        if self.pool_controller:
+            self.pool_controller.disconnect()
+        self.connected = False
+        self.conn_status.config(text="🔴 Disconnected", foreground="red")
+        self.update_status("Disconnected from database")
+
+    def show_test_result(self, success, message):
+        """Show connection test result"""
+        if success:
+            messagebox.showinfo("Connection Test", f"✅ {message}")
+        else:
+            messagebox.showerror("Connection Test", f"❌ {message}")
+        self.update_status("Ready")
+
+    def handle_connect_result(self, success, message):
+        """Handle connection result"""
+        if success:
+            self.connected = True
+            self.conn_status.config(text="🟢 Connected", foreground="green")
+            self.update_status("Database connected successfully")
+            self.refresh_tables()
+        else:
+            messagebox.showerror("Connection Error", f"❌ {message}")
+            self.update_status("Connection failed")
+
+    # Excel Operations
+    def browse_excel(self):
+        """Browse for Excel file"""
+        file_path = filedialog.askopenfilename(
+            title="Select Excel File",
+            filetypes=[("Excel files", "*.xlsx *.xls *.xlsm"), ("All files", "*.*")],
+        )
+        if file_path:
+            self.excel_path.set(file_path)
+
+    def load_excel(self):
+        """Load Excel file"""
+        file_path = self.excel_path.get()
+        if not file_path:
+            messagebox.showwarning("Warning", "Please select an Excel file")
+            return
+
+        def load_async():
+            if self.pool_controller:
+                success, result = self.pool_controller.load_excel_file(file_path)
+            else:
+                success, result = False, {"error": "Pool controller not available"}
+            self.root.after(0, lambda: self.handle_excel_result(success, result))
+
+        threading.Thread(target=load_async, daemon=True).start()
+        self.update_status("Loading Excel file...")
+
+    def handle_excel_result(self, success, result):
+        """Handle Excel load result"""
+        if success:
+            self.excel_loaded = True
+            self.display_excel_info(result)
+            self.update_status(f"Excel loaded: {result.get('total_rows', 0)} rows")
+        else:
+            messagebox.showerror(
+                "Excel Error", f"❌ {result.get('error', 'Unknown error')}"
+            )
+            self.update_status("Excel load failed")
+
+    def display_excel_info(self, info):
+        """Display Excel file information"""
+        self.excel_info_text.config(state="normal")
+        self.excel_info_text.delete(1.0, tk.END)
+
+        content = f"""📁 File: {info.get('file_name', 'Unknown')}
+📊 Total Rows: {info.get('total_rows', 0):,}
+📋 Columns: {len(info.get('columns', []))}
+
+📝 Column Details:
+"""
+        for i, col in enumerate(info.get("columns", []), 1):
+            content += f"  {i:2d}. {col}\n"
+
+        content += f"\n🔍 Sample Data (first 5 rows):\n"
+        for i, row in enumerate(info.get("sample_data", []), 1):
+            content += f"\n--- Row {i} ---\n"
+            for col, value in row.items():
+                content += f"{col}: {value}\n"
+
+        self.excel_info_text.insert(1.0, content)
+        self.excel_info_text.config(state="disabled")
+
+    # Table and Mapping Operations
+    def refresh_tables(self):
+        """Refresh table list"""
+        if not self.connected or not self.pool_controller:
+            return
+
+        def refresh_async():
+            tables = self.pool_controller.get_tables()
+            self.root.after(0, lambda: self.update_table_list(tables))
+
+        threading.Thread(target=refresh_async, daemon=True).start()
+
+    def update_table_list(self, tables):
+        """Update table combobox"""
+        self.table_combo["values"] = tables
+        if tables:
+            self.table_combo.current(0)
+            self.update_status(f"Found {len(tables)} tables")
+
+    def on_table_select(self, event=None):
+        """Handle table selection"""
+        table_name = self.target_table.get()
+        if table_name and self.excel_loaded:
+            self.populate_mappings(table_name)
+
+    def populate_mappings(self, table_name):
+        """Populate field mappings"""
+        # Clear existing
+        for item in self.mapping_tree.get_children():
+            self.mapping_tree.delete(item)
+
+        def populate_async():
+            if self.pool_controller:
+                schema = self.pool_controller.get_table_schema(table_name)
+                excel_columns = (
+                    self.pool_controller.current_excel_file.get("columns", [])
+                    if self.pool_controller.current_excel_file
+                    else []
+                )
+                sample_data = (
+                    self.pool_controller.current_excel_file.get("sample_data", [])
+                    if self.pool_controller.current_excel_file
+                    else []
+                )
+                self.root.after(
+                    0, lambda: self.display_mappings(excel_columns, schema, sample_data)
+                )
+
+        threading.Thread(target=populate_async, daemon=True).start()
+
+    def display_mappings(self, excel_columns, schema, sample_data):
+        """Display mapping options"""
+        db_columns = [col["name"] for col in schema]
+
+        for i, excel_col in enumerate(excel_columns):
+            # Get sample data for this column
+            sample_value = ""
+            if sample_data and len(sample_data) > 0:
+                sample_value = str(sample_data[0].get(excel_col, ""))[:50]
+
+            # Auto-suggest mapping
+            suggested_db_col = ""
+            for db_col in db_columns:
+                if excel_col.lower().replace(" ", "_") == db_col.lower():
+                    suggested_db_col = db_col
+                    break
+
+            self.mapping_tree.insert(
+                "", "end", values=(excel_col, suggested_db_col, "AUTO", sample_value)
+            )
+
+    def auto_map_fields(self):
+        """Auto-map fields"""
+        table_name = self.target_table.get()
+        if not table_name:
+            messagebox.showwarning("Warning", "Please select a target table")
+            return
+
+        def map_async():
+            if self.pool_controller:
+                mappings = self.pool_controller.auto_map_fields(table_name)
+                self.root.after(0, lambda: self.update_mappings_display(mappings))
+
+        threading.Thread(target=map_async, daemon=True).start()
+
+    def update_mappings_display(self, mappings):
+        """Update mappings display"""
+        for item in self.mapping_tree.get_children():
+            excel_col = self.mapping_tree.item(item)["values"][0]
+            if excel_col in mappings:
+                values = list(self.mapping_tree.item(item)["values"])
+                values[1] = mappings[excel_col]  # Update db_column
+                self.mapping_tree.item(item, values=values)
+
+        self.update_status(f"Auto-mapped {len(mappings)} fields")
+
+    def clear_mappings(self):
+        """Clear all mappings"""
+        for item in self.mapping_tree.get_children():
+            values = list(self.mapping_tree.item(item)["values"])
+            values[1] = ""  # Clear db_column
+            self.mapping_tree.item(item, values=values)
+
+        self.update_status("Mappings cleared")
+
+    def validate_mappings(self):
+        """Validate current mappings"""
+        mapped_count = 0
+        errors = []
+
+        for item in self.mapping_tree.get_children():
+            values = self.mapping_tree.item(item)["values"]
+            if values[1]:  # Has db_column mapping
+                mapped_count += 1
+
+        if mapped_count == 0:
+            errors.append("No field mappings defined")
+
+        if errors:
+            messagebox.showwarning("Validation", "\n".join(errors))
+        else:
+            messagebox.showinfo(
+                "Validation", f"✅ {mapped_count} field mappings are valid"
+            )
+
+    # Import Operations
+    def preview_import(self):
+        """Preview import data"""
+        if not self.excel_loaded:
+            messagebox.showwarning("Warning", "Please load Excel file first")
+            return
+
+        if self.pool_controller:
+            preview_data = self.pool_controller.get_import_preview(5)
+            if preview_data:
+                preview_text = "Preview of mapped data:\n\n"
+                for i, row in enumerate(preview_data, 1):
+                    preview_text += f"Row {i}:\n"
+                    for col, value in row.items():
+                        preview_text += f"  {col}: {value}\n"
+                    preview_text += "\n"
+                messagebox.showinfo("Import Preview", preview_text)
+            else:
+                messagebox.showinfo("Preview", "No preview data available")
+
+    def start_import(self):
+        """Start data import"""
+        if not self.connected:
+            messagebox.showwarning("Warning", "Please connect to database first")
+            return
+
+        if not self.excel_loaded:
+            messagebox.showwarning("Warning", "Please load Excel file first")
+            return
+
+        table_name = self.target_table.get()
+        if not table_name:
+            messagebox.showwarning("Warning", "Please select target table")
+            return
+
+        # Validate mappings
+        mapped_count = 0
+        for item in self.mapping_tree.get_children():
+            if self.mapping_tree.item(item)["values"][1]:
+                mapped_count += 1
+
+        if mapped_count == 0:
+            messagebox.showwarning("Warning", "Please map at least one field")
+            return
+
+        # Confirm import
+        if not messagebox.askyesno(
+            "Confirm Import",
+            f"Import data to table '{table_name}'?\n"
+            f"Mapped fields: {mapped_count}\n"
+            f"Mode: {self.import_mode.get()}",
+        ):
+            return
+
+        # Start import
+        self.import_in_progress = True
+        self.import_btn.config(state="disabled", text="Importing...")
+
+        options = {
+            "batch_size": int(self.batch_size.get() or 1000),
+            "mode": self.import_mode.get(),
+        }
+
+        if self.pool_controller:
+            self.pool_controller.import_data(table_name, options)
+
+    # Mock Data Operations
+    def generate_mock_data(self, data_type):
+        """Generate mock data"""
+        if not self.connected:
+            messagebox.showwarning("Warning", "Please connect to database first")
+            return
+
+        # Simple mock data generation dialog
+        count = tk.simpledialog.askinteger(
+            "Mock Data",
+            f"How many {data_type} records to generate?",
+            initialvalue=1000,
+            minvalue=1,
+            maxvalue=100000,
+        )
+        if count:
+
+            def generate_async():
+                if self.controller and hasattr(self.controller, "generate_mock_data"):
+                    success = self.controller.generate_mock_data(
+                        data_type, count, f"mock_{data_type}"
+                    )
+                    message = (
+                        f"Generated {count} {data_type} records"
+                        if success
+                        else "Generation failed"
+                    )
+                    self.root.after(
+                        0, lambda: messagebox.showinfo("Mock Data", message)
+                    )
+
+            threading.Thread(target=generate_async, daemon=True).start()
+
+    # Event Handlers
+    def on_database_connected(self, data):
+        """Handle database connected event"""
+        pass  # Already handled in handle_connect_result
+
+    def on_excel_loaded(self, data):
+        """Handle Excel loaded event"""
+        pass  # Already handled in handle_excel_result
+
+    def on_import_progress(self, data):
+        """Handle import progress"""
+        progress = data.get("progress", 0)
+        status = data.get("status", "Processing...")
+
+        self.progress_var.set(progress)
+        self.progress_label.config(text=status)
+        self.update_status(f"Import: {progress}% - {status}")
+
+    def on_import_completed(self, data):
+        """Handle import completion"""
+        self.import_in_progress = False
+        self.import_btn.config(state="normal", text="🚀 Start Import")
+
+        rows = data.get("rows", 0)
+        table = data.get("table", "")
+
+        result_msg = f"✅ Import completed successfully!\nTable: {table}\nRows imported: {rows:,}"
+
+        self.results_text.config(state="normal")
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.results_text.insert(
+            tk.END, f"\n[{timestamp}] {result_msg}\n" + "=" * 60 + "\n"
+        )
+        self.results_text.config(state="disabled")
+        self.results_text.see(tk.END)
+
+        self.update_status("Import completed successfully")
+        messagebox.showinfo("Import Complete", result_msg)
+
+        # Update connection stats
+        if self.pool_controller:
+            stats = self.pool_controller.get_connection_stats()
+            self.stats_text.config(
+                text=f"Pool: {stats.get('in_use_connections', 0)}/{stats.get('total_connections', 0)} connections"
+            )
+
+    def on_import_error(self, data):
+        """Handle import error"""
+        self.import_in_progress = False
+        self.import_btn.config(state="normal", text="🚀 Start Import")
+
+        error = data.get("error", "Unknown error")
+        error_msg = f"❌ Import failed: {error}"
+
+        self.results_text.config(state="normal")
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.results_text.insert(
+            tk.END, f"\n[{timestamp}] {error_msg}\n" + "=" * 60 + "\n"
+        )
+        self.results_text.config(state="disabled")
+        self.results_text.see(tk.END)
+
+        self.update_status("Import failed")
+        messagebox.showerror("Import Error", error_msg)
+
+    # Utility Methods
+    def load_recent_logs(self):
+        """Load recent application logs"""
+        try:
+            log_file = (
+                Path("logs") / f"denso888_{datetime.now().strftime('%Y%m%d')}.log"
+            )
+            if log_file.exists():
+                with open(log_file, "r", encoding="utf-8") as f:
+                    logs = f.read()
+
+                self.log_text.config(state="normal")
+                self.log_text.delete(1.0, tk.END)
+                self.log_text.insert(1.0, logs)
+                self.log_text.config(state="disabled")
+                self.log_text.see(tk.END)
+        except Exception as e:
+            logger.error(f"Failed to load logs: {e}")
+
+    def update_status(self, message):
+        """Update status bar"""
+        self.status_text.config(text=message)
+
+        # Auto-refresh logs periodically
+        self.root.after(5000, self.refresh_logs)
+
+    def refresh_logs(self):
+        """Refresh logs display"""
+        if (
+            self.notebook.index(self.notebook.select()) == len(self.notebook.tabs()) - 1
+        ):  # Logs tab is active
+            self.load_recent_logs()
+
+    def run(self):
+        """Start the GUI application"""
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # Show startup message
+        self.update_status("DENSO888 Professional System Ready")
+
+        # Start main loop
+        self.root.mainloop()
+
+    def on_closing(self):
+        """Handle window closing"""
+        if self.import_in_progress:
+            if not messagebox.askyesno(
+                "Exit", "Import in progress. Are you sure you want to exit?"
+            ):
+                return
+
+        try:
+            # Cleanup controllers
+            if self.pool_controller:
+                self.pool_controller.cleanup()
+            if self.controller:
+                self.controller.cleanup()
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")
+
+        self.root.destroy()
+
+
+# Import required modules at the top
+from datetime import datetime
