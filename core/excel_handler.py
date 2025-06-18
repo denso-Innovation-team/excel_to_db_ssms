@@ -1,775 +1,376 @@
-"""Enhanced Excel handler with robust error handling and performance optimization"""
+"""
+services/excel_service.py
+Excel Processing Service - Clean & Focused - FIXED
+"""
 
+from typing import Dict, Any, List, Tuple
 import pandas as pd
-import re
-import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Iterator, Union
 from datetime import datetime
-import warnings
-
-# Suppress pandas warnings for cleaner output
-warnings.filterwarnings("ignore", category=UserWarning)
+import logging
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
 
 logger = logging.getLogger(__name__)
 
 
-class TypeDetector:
-    """Enhanced auto-detection of column data types"""
+class ExcelService:
+    """Excel file processing service"""
 
-    TYPE_PATTERNS = {
-        "datetime": {
-            "keywords": [
-                "date",
-                "time",
-                "วันที่",
-                "เวลา",
-                "created",
-                "updated",
-                "timestamp",
-                "born",
-                "expire",
-            ],
-            "patterns": [
-                r"\d{4}-\d{2}-\d{2}",
-                r"\d{2}/\d{2}/\d{4}",
-                r"\d{2}-\d{2}-\d{4}",
-            ],
-        },
-        "integer": {
-            "keywords": [
-                "id",
-                "age",
-                "count",
-                "number",
-                "จำนวน",
-                "อายุ",
-                "qty",
-                "quantity",
-                "year",
-                "rank",
-            ],
-            "patterns": [r"^\d+$"],
-        },
-        "float": {
-            "keywords": [
-                "price",
-                "salary",
-                "amount",
-                "total",
-                "value",
-                "ราคา",
-                "เงินเดือน",
-                "rate",
-                "percent",
-                "score",
-            ],
-            "patterns": [r"^\d+\.\d+$", r"^\d+,\d+\.\d+$"],
-        },
-        "boolean": {
-            "keywords": [
-                "active",
-                "enabled",
-                "is_",
-                "has_",
-                "flag",
-                "status",
-                "valid",
-                "confirmed",
-            ],
-            "patterns": [r"^(true|false|yes|no|y|n|1|0)$"],
-        },
-        "email": {
-            "keywords": ["email", "mail", "อีเมล"],
-            "patterns": [r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"],
-        },
-        "phone": {
-            "keywords": ["phone", "tel", "mobile", "โทร", "มือถือ"],
-            "patterns": [r"^\+?[\d\-\(\)\s]+$"],
-        },
-    }
+    def __init__(self):
+        self.supported_extensions = [".xlsx", ".xls", ".xlsm", ".xlsb"]
+        self.current_file = None
+        self.file_info = {}
 
-    @classmethod
-    def detect_types(
-        cls, columns: List[str], sample_data: Optional[pd.DataFrame] = None
-    ) -> Dict[str, str]:
-        """Enhanced type detection with sample data analysis"""
-        type_mapping = {}
-
-        for column in columns:
-            col_lower = column.lower().strip()
-            detected_type = "string"  # default
-
-            # Pattern-based detection
-            for data_type, type_info in cls.TYPE_PATTERNS.items():
-                # Check keywords
-                if any(keyword in col_lower for keyword in type_info["keywords"]):
-                    detected_type = data_type
-                    break
-
-            # Sample data analysis if provided
-            if sample_data is not None and column in sample_data.columns:
-                sample_type = cls._analyze_sample_data(sample_data[column])
-                if sample_type != "string":
-                    detected_type = sample_type
-
-            type_mapping[column] = detected_type
-
-        return type_mapping
-
-    @classmethod
-    def _analyze_sample_data(cls, series: pd.Series) -> str:
-        """Analyze sample data to determine type"""
-        # Remove null values for analysis
-        clean_series = series.dropna().astype(str)
-
-        if len(clean_series) == 0:
-            return "string"
-
-        # Check for numeric patterns
+    def analyze_file(self, file_path: str) -> Dict[str, Any]:
+        """Analyze Excel file and return basic information"""
         try:
-            pd.to_numeric(clean_series)
-            # Check if all values are integers
-            if clean_series.str.match(r"^\d+$").all():
-                return "integer"
+            file_path = Path(file_path)
+
+            # Validate file
+            if not self._validate_file(file_path):
+                return {"error": "Invalid file or unsupported format"}
+
+            # Read basic info
+            info = self._get_basic_info(file_path)
+
+            # Read sample data
+            sample_data = self._read_sample_data(file_path)
+            info.update(sample_data)
+
+            self.current_file = str(file_path)
+            self.file_info = info
+
+            return info
+
+        except Exception as e:
+            logger.error(f"Failed to analyze Excel file: {e}")
+            return {"error": str(e)}
+
+    def read_file(self, file_path: str, options: Dict[str, Any] = None) -> List[Dict]:
+        """Read Excel file and return data as list of dictionaries"""
+        try:
+            options = options or {}
+
+            # Read Excel file
+            df = pd.read_excel(
+                file_path,
+                header=0 if options.get("has_header", True) else None,
+                sheet_name=options.get("sheet_name", 0),
+            )
+
+            # Clean data if requested
+            if options.get("clean_data", True):
+                df = self._clean_dataframe(df)
+
+            # Convert to list of dictionaries
+            data = df.to_dict("records")
+
+            logger.info(f"Successfully read {len(data)} rows from Excel file")
+            return data
+
+        except Exception as e:
+            logger.error(f"Failed to read Excel file: {e}")
+            raise Exception(f"Excel read error: {str(e)}")
+
+    def export_data(
+        self, data: List[Dict], file_path: str, format_type: str = "xlsx"
+    ) -> bool:
+        """Export data to Excel file"""
+        try:
+            if not data:
+                raise ValueError("No data to export")
+
+            df = pd.DataFrame(data)
+
+            if format_type.lower() == "xlsx":
+                df.to_excel(file_path, index=False, engine="openpyxl")
+            elif format_type.lower() == "csv":
+                df.to_csv(file_path, index=False, encoding="utf-8")
             else:
-                return "float"
-        except (ValueError, TypeError):
-            pass
+                raise ValueError(f"Unsupported export format: {format_type}")
 
-        # Check for date patterns
+            logger.info(f"Successfully exported {len(data)} rows to {file_path}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to export data: {e}")
+            return False
+
+    def get_sheet_names(self, file_path: str) -> List[str]:
+        """Get list of sheet names in Excel file"""
         try:
-            pd.to_datetime(clean_series.head(10))
-            return "datetime"
-        except (ValueError, TypeError):
-            pass
+            excel_file = pd.ExcelFile(file_path)
+            return excel_file.sheet_names
+        except Exception as e:
+            logger.error(f"Failed to get sheet names: {e}")
+            return []
 
-        # Check for boolean patterns
-        bool_values = {"true", "false", "yes", "no", "y", "n", "1", "0"}
-        if clean_series.str.lower().isin(bool_values).all():
-            return "boolean"
+    def validate_file(self, file_path: str) -> Tuple[bool, str]:
+        """Validate Excel file"""
+        try:
+            file_path = Path(file_path)
 
-        # Check for email pattern
-        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-        if clean_series.str.match(email_pattern).any():
-            return "email"
+            if not file_path.exists():
+                return False, "File does not exist"
 
-        return "string"
+            if file_path.suffix.lower() not in self.supported_extensions:
+                return (
+                    False,
+                    f"Unsupported file type. Supported: {', '.join(self.supported_extensions)}",
+                )
 
+            # Try to read first row
+            pd.read_excel(file_path, nrows=1)
 
-class DataCleaner:
-    """Enhanced data cleaning with configurable options"""
+            return True, "File is valid"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or self._get_default_config()
+        except Exception as e:
+            return False, f"File validation failed: {str(e)}"
 
-    def _get_default_config(self) -> Dict[str, Any]:
-        """Default cleaning configuration"""
+    def get_file_info(self, file_path: str) -> Dict[str, Any]:
+        """Get comprehensive file information"""
+        try:
+            file_path = Path(file_path)
+
+            # Basic file info
+            stat = file_path.stat()
+            file_size_mb = round(stat.st_size / (1024 * 1024), 2)
+            modified_date = datetime.fromtimestamp(stat.st_mtime)
+
+            # Excel info
+            df = pd.read_excel(file_path)
+
+            return {
+                "file_name": file_path.name,
+                "file_path": str(file_path.absolute()),
+                "file_size_mb": file_size_mb,
+                "modified_date": modified_date.strftime("%Y-%m-%d %H:%M:%S"),
+                "total_rows": len(df),
+                "total_columns": len(df.columns),
+                "columns": list(df.columns),
+                "data_types": {col: str(dtype) for col, dtype in df.dtypes.items()},
+                "sample_data": df.head(3).to_dict("records"),
+                "sheet_names": self.get_sheet_names(file_path),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get file info: {e}")
+            return {"error": str(e)}
+
+    def _validate_file(self, file_path: Path) -> bool:
+        """Internal file validation"""
+        if not file_path.exists():
+            return False
+
+        if file_path.suffix.lower() not in self.supported_extensions:
+            return False
+
+        try:
+            # Quick read test
+            pd.read_excel(file_path, nrows=1)
+            return True
+        except Exception:
+            return False
+
+    def _get_basic_info(self, file_path: Path) -> Dict[str, Any]:
+        """Get basic file information"""
+        stat = file_path.stat()
+
         return {
-            "clean_column_names": True,
-            "remove_empty_rows": True,
-            "trim_strings": True,
-            "standardize_nulls": True,
-            "remove_duplicates": False,
-            "max_string_length": 1000,
-            "date_formats": ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"],
-            "decimal_separator": ".",
-            "thousand_separator": ",",
+            "file_name": file_path.name,
+            "file_path": str(file_path.absolute()),
+            "file_size_mb": round(stat.st_size / (1024 * 1024), 2),
+            "modified_date": datetime.fromtimestamp(stat.st_mtime).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
         }
 
-    def clean_column_name(self, name: str) -> str:
-        """Enhanced column name cleaning"""
-        if not self.config["clean_column_names"]:
-            return name
+    def _read_sample_data(
+        self, file_path: Path, sample_rows: int = 10
+    ) -> Dict[str, Any]:
+        """Read sample data from Excel file"""
+        try:
+            # Read sample rows
+            df_sample = pd.read_excel(file_path, nrows=sample_rows)
 
-        # Convert to string and handle None
+            # Read full file for row count (more efficient way)
+            df_info = pd.read_excel(file_path, usecols=[0])
+            total_rows = len(df_info)
+
+            return {
+                "total_rows": total_rows,
+                "total_columns": len(df_sample.columns),
+                "columns": list(df_sample.columns),
+                "data_types": {
+                    col: str(dtype) for col, dtype in df_sample.dtypes.items()
+                },
+                "sample_data": df_sample.head(5).to_dict("records"),
+                "data_quality": self._analyze_data_quality(df_sample),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to read sample data: {e}")
+            return {"error": str(e)}
+
+    def _clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Clean DataFrame for database import"""
+        try:
+            # Remove completely empty rows
+            df = df.dropna(how="all")
+
+            # Clean column names
+            df.columns = [self._clean_column_name(col) for col in df.columns]
+
+            # Handle missing values
+            for col in df.columns:
+                if df[col].dtype == "object":
+                    df[col] = df[col].fillna("").astype(str).str.strip()
+                else:
+                    df[col] = df[col].fillna(0)
+
+            # Remove duplicate rows
+            df = df.drop_duplicates()
+
+            return df
+
+        except Exception as e:
+            logger.error(f"Failed to clean DataFrame: {e}")
+            return df
+
+    def _clean_column_name(self, name: str) -> str:
+        """Clean column name for database compatibility"""
+        import re
+
+        # Convert to string and strip
         clean_name = str(name).strip()
 
-        # Remove special characters and replace with underscore
+        # Replace special characters with underscore
         clean_name = re.sub(r"[^\w\s]", "_", clean_name)
 
-        # Replace spaces and multiple underscores
+        # Replace spaces with underscore
         clean_name = re.sub(r"\s+", "_", clean_name)
+
+        # Remove multiple underscores
         clean_name = re.sub(r"_+", "_", clean_name)
 
-        # Remove leading/trailing underscores
-        clean_name = clean_name.strip("_")
-
-        # Convert to lowercase
-        clean_name = clean_name.lower()
+        # Remove leading/trailing underscores and convert to lowercase
+        clean_name = clean_name.strip("_").lower()
 
         # Ensure not empty
         if not clean_name:
             clean_name = "column"
 
         # Handle reserved keywords
-        reserved_words = {"index", "level", "values", "items"}
+        reserved_words = {"index", "order", "group", "select", "from", "where", "table"}
         if clean_name in reserved_words:
             clean_name = f"{clean_name}_col"
 
         return clean_name
 
-    def clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Enhanced DataFrame cleaning"""
-        df_clean = df.copy()
-
-        # Clean column names
-        if self.config["clean_column_names"]:
-            df_clean.columns = [self.clean_column_name(col) for col in df_clean.columns]
-
-        # Remove completely empty rows
-        if self.config["remove_empty_rows"]:
-            df_clean = df_clean.dropna(how="all")
-
-        # Clean string columns
-        if self.config["trim_strings"]:
-            string_columns = df_clean.select_dtypes(include=["object"]).columns
-            for col in string_columns:
-                df_clean[col] = df_clean[col].astype(str).str.strip()
-
-                # Limit string length
-                max_length = self.config["max_string_length"]
-                df_clean[col] = df_clean[col].str[:max_length]
-
-        # Standardize null values
-        if self.config["standardize_nulls"]:
-            null_values = [
-                "",
-                "NULL",
-                "null",
-                "None",
-                "none",
-                "N/A",
-                "n/a",
-                "#N/A",
-                "nan",
-                "NaN",
-            ]
-            df_clean = df_clean.replace(null_values, None)
-
-        # Remove duplicates
-        if self.config["remove_duplicates"]:
-            df_clean = df_clean.drop_duplicates()
-
-        return df_clean
-
-    def convert_types(
-        self, df: pd.DataFrame, type_mapping: Dict[str, str]
-    ) -> pd.DataFrame:
-        """Enhanced type conversion with error handling"""
-        df_typed = df.copy()
-
-        for column, target_type in type_mapping.items():
-            if column not in df_typed.columns:
-                logger.warning(f"Column '{column}' not found in DataFrame")
-                continue
-
-            try:
-                if target_type == "integer":
-                    df_typed[column] = self._convert_to_integer(df_typed[column])
-                elif target_type == "float":
-                    df_typed[column] = self._convert_to_float(df_typed[column])
-                elif target_type == "datetime":
-                    df_typed[column] = self._convert_to_datetime(df_typed[column])
-                elif target_type == "boolean":
-                    df_typed[column] = self._convert_to_boolean(df_typed[column])
-                elif target_type == "email":
-                    df_typed[column] = self._clean_email(df_typed[column])
-                elif target_type == "phone":
-                    df_typed[column] = self._clean_phone(df_typed[column])
-
-            except Exception as e:
-                logger.error(
-                    f"Type conversion failed for column '{column}' to {target_type}: {e}"
-                )
-                continue
-
-        return df_typed
-
-    def _convert_to_integer(self, series: pd.Series) -> pd.Series:
-        """Convert to integer with enhanced handling"""
-        # Clean numeric strings
-        clean_series = series.astype(str).str.replace(
-            self.config["thousand_separator"], ""
-        )
-        clean_series = clean_series.str.replace(r"[^\d.-]", "", regex=True)
-
-        # Convert to numeric first, then to Int64 (nullable integer)
-        numeric_series = pd.to_numeric(clean_series, errors="coerce")
-        return numeric_series.fillna(0).astype("Int64")
-
-    def _convert_to_float(self, series: pd.Series) -> pd.Series:
-        """Convert to float with enhanced handling"""
-        # Handle different decimal separators
-        clean_series = series.astype(str)
-
-        # Replace decimal separator if needed
-        if self.config["decimal_separator"] != ".":
-            clean_series = clean_series.str.replace(
-                self.config["decimal_separator"], "."
-            )
-
-        # Remove thousand separators
-        clean_series = clean_series.str.replace(self.config["thousand_separator"], "")
-
-        # Remove non-numeric characters except decimal point and minus
-        clean_series = clean_series.str.replace(r"[^\d.-]", "", regex=True)
-
-        return pd.to_numeric(clean_series, errors="coerce").fillna(0.0)
-
-    def _convert_to_datetime(self, series: pd.Series) -> pd.Series:
-        """Convert to datetime with multiple format support"""
-        # Try multiple datetime formats
-        for date_format in self.config["date_formats"]:
-            try:
-                return pd.to_datetime(series, format=date_format, errors="coerce")
-            except (ValueError, TypeError):
-                continue
-
-        # Fallback to pandas auto-detection
-        return pd.to_datetime(series, errors="coerce", dayfirst=True)
-
-    def _convert_to_boolean(self, series: pd.Series) -> pd.Series:
-        """Convert to boolean with enhanced mapping"""
-        bool_mapping = {
-            "true": True,
-            "1": True,
-            "yes": True,
-            "y": True,
-            "on": True,
-            "active": True,
-            "false": False,
-            "0": False,
-            "no": False,
-            "n": False,
-            "off": False,
-            "inactive": False,
-        }
-
-        clean_series = series.astype(str).str.lower().str.strip()
-        return clean_series.map(bool_mapping).fillna(False)
-
-    def _clean_email(self, series: pd.Series) -> pd.Series:
-        """Clean and validate email addresses"""
-        clean_series = series.astype(str).str.lower().str.strip()
-
-        # Basic email validation pattern
-        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-
-        def validate_email(email):
-            if pd.isna(email) or email == "nan":
-                return None
-            return email if re.match(email_pattern, email) else None
-
-        return clean_series.apply(validate_email)
-
-    def _clean_phone(self, series: pd.Series) -> pd.Series:
-        """Clean phone numbers"""
-
-        def clean_phone_number(phone):
-            if pd.isna(phone) or phone == "nan":
-                return None
-
-            # Remove all non-digit characters except + at the beginning
-            clean_phone = re.sub(r"[^\d+]", "", str(phone))
-
-            # Ensure + is only at the beginning
-            if clean_phone.startswith("+"):
-                clean_phone = "+" + re.sub(r"[^\d]", "", clean_phone[1:])
-            else:
-                clean_phone = re.sub(r"[^\d]", "", clean_phone)
-
-            return clean_phone if len(clean_phone) >= 7 else None
-
-        return series.apply(clean_phone_number)
-
-
-class ExcelReader:
-    """Enhanced Excel reader with chunking and error recovery"""
-
-    def __init__(
-        self,
-        file_path: Union[str, Path],
-        sheet_name: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
-    ):
-        self.file_path = Path(file_path)
-        self.sheet_name = sheet_name
-        self.config = config or self._get_default_config()
-        self.cleaner = DataCleaner(self.config.get("cleaning", {}))
-        self.type_detector = TypeDetector()
-
-    def _get_default_config(self) -> Dict[str, Any]:
-        """Default reader configuration"""
-        return {
-            "max_file_size_mb": 100,
-            "sample_rows": 1000,
-            "skip_rows": 0,
-            "use_header": True,
-            "engine": "openpyxl",
-            "cleaning": {},
-            "type_detection": True,
-        }
-
-    def validate(self) -> Dict[str, Any]:
-        """Enhanced file validation"""
-        validation_result = {"valid": True, "errors": [], "warnings": []}
-
-        # Check file existence
-        if not self.file_path.exists():
-            validation_result["valid"] = False
-            validation_result["errors"].append(f"File not found: {self.file_path}")
-            return validation_result
-
-        # Check file extension
-        valid_extensions = [".xlsx", ".xls", ".xlsm", ".xlsb"]
-        if self.file_path.suffix.lower() not in valid_extensions:
-            validation_result["valid"] = False
-            validation_result["errors"].append(
-                f"Invalid file type. Must be: {', '.join(valid_extensions)}"
-            )
-            return validation_result
-
-        # Check file size
-        file_size_mb = self.file_path.stat().st_size / (1024 * 1024)
-        max_size = self.config["max_file_size_mb"]
-
-        if file_size_mb > max_size:
-            validation_result["warnings"].append(
-                f"Large file ({file_size_mb:.1f}MB > {max_size}MB)"
-            )
-
-        # Check file accessibility
-        try:
-            with pd.ExcelFile(
-                self.file_path, engine=self.config["engine"]
-            ) as excel_file:
-                if not excel_file.sheet_names:
-                    validation_result["valid"] = False
-                    validation_result["errors"].append("No sheets found in Excel file")
-        except Exception as e:
-            validation_result["valid"] = False
-            validation_result["errors"].append(f"Cannot read Excel file: {str(e)}")
-
-        return validation_result
-
-    def get_file_info(self) -> Dict[str, Any]:
-        """Enhanced file information"""
-        validation = self.validate()
-        if not validation["valid"]:
-            return {"error": validation["errors"][0]}
-
-        try:
-            with pd.ExcelFile(
-                self.file_path, engine=self.config["engine"]
-            ) as excel_file:
-                sheets = excel_file.sheet_names
-                target_sheet = self.sheet_name or sheets[0]
-
-                # Sample data for analysis
-                sample_df = pd.read_excel(
-                    excel_file,
-                    sheet_name=target_sheet,
-                    nrows=self.config["sample_rows"],
-                    skiprows=self.config["skip_rows"],
-                    header=0 if self.config["use_header"] else None,
-                )
-
-                # Full row count (efficient method)
-                full_df = pd.read_excel(
-                    excel_file, sheet_name=target_sheet, usecols=[0]
-                )
-                total_rows = len(full_df)
-
-                # Type detection
-                type_mapping = {}
-                if self.config["type_detection"]:
-                    type_mapping = self.type_detector.detect_types(
-                        sample_df.columns.tolist(), sample_df
-                    )
-
-                return {
-                    "file_path": str(self.file_path),
-                    "file_size_mb": self.file_path.stat().st_size / (1024 * 1024),
-                    "available_sheets": sheets,
-                    "target_sheet": target_sheet,
-                    "total_rows": total_rows,
-                    "total_columns": len(sample_df.columns),
-                    "columns": sample_df.columns.tolist(),
-                    "sample_data": sample_df.head(5),
-                    "type_mapping": type_mapping,
-                    "data_quality": self._analyze_data_quality(sample_df),
-                    "modified_date": datetime.fromtimestamp(
-                        self.file_path.stat().st_mtime
-                    ),
-                    "validation": validation,
-                }
-
-        except Exception as e:
-            logger.error(f"Error getting file info: {e}")
-            return {"error": str(e)}
-
     def _analyze_data_quality(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Analyze data quality metrics"""
-        return {
-            "null_percentage": (
-                df.isnull().sum().sum() / (len(df) * len(df.columns)) * 100
-            ),
-            "duplicate_rows": df.duplicated().sum(),
-            "empty_columns": df.isnull().all().sum(),
-            "mixed_types": self._detect_mixed_types(df),
-            "outliers": self._detect_outliers(df),
-        }
+        try:
+            total_cells = len(df) * len(df.columns)
+            null_cells = df.isnull().sum().sum()
+
+            return {
+                "total_rows": len(df),
+                "total_columns": len(df.columns),
+                "null_percentage": (
+                    round((null_cells / total_cells) * 100, 2) if total_cells > 0 else 0
+                ),
+                "duplicate_rows": df.duplicated().sum(),
+                "empty_columns": df.isnull().all().sum(),
+                "mixed_type_columns": self._detect_mixed_types(df),
+                "potential_issues": self._detect_potential_issues(df),
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to analyze data quality: {e}")
+            return {"error": str(e)}
 
     def _detect_mixed_types(self, df: pd.DataFrame) -> List[str]:
         """Detect columns with mixed data types"""
-        mixed_type_columns = []
+        mixed_columns = []
 
         for col in df.columns:
             if df[col].dtype == "object":
-                # Check if column has mixed numeric and string data
+                # Check for mixed numeric/text data
                 non_null_data = df[col].dropna()
                 if len(non_null_data) > 0:
-                    try:
-                        pd.to_numeric(non_null_data)
-                    except (ValueError, TypeError):
-                        # Check if partially numeric
-                        numeric_count = 0
-                        for value in non_null_data:
-                            try:
-                                float(str(value))
-                                numeric_count += 1
-                            except (ValueError, TypeError):
-                                pass
+                    numeric_count = 0
+                    for value in non_null_data:
+                        try:
+                            float(str(value))
+                            numeric_count += 1
+                        except (ValueError, TypeError):
+                            pass
 
-                        if 0 < numeric_count < len(non_null_data):
-                            mixed_type_columns.append(col)
+                    # If partially numeric, it might be mixed type
+                    if 0 < numeric_count < len(non_null_data):
+                        mixed_columns.append(col)
 
-        return mixed_type_columns
+        return mixed_columns
 
-    def _detect_outliers(self, df: pd.DataFrame) -> Dict[str, int]:
-        """Detect potential outliers in numeric columns"""
-        outliers = {}
+    def _detect_potential_issues(self, df: pd.DataFrame) -> List[str]:
+        """Detect potential data issues"""
+        issues = []
 
-        numeric_columns = df.select_dtypes(include=["number"]).columns
-        for col in numeric_columns:
-            Q1 = df[col].quantile(0.25)
-            Q3 = df[col].quantile(0.75)
-            IQR = Q3 - Q1
+        # Check for very long strings that might cause database issues
+        for col in df.select_dtypes(include=["object"]).columns:
+            max_length = df[col].astype(str).str.len().max()
+            if max_length > 1000:
+                issues.append(
+                    f"Column '{col}' has very long text (max: {max_length} chars)"
+                )
 
-            outlier_count = (
-                (df[col] < (Q1 - 1.5 * IQR)) | (df[col] > (Q3 + 1.5 * IQR))
-            ).sum()
-            if outlier_count > 0:
-                outliers[col] = outlier_count
+        # Check for columns with mostly null values
+        for col in df.columns:
+            null_percentage = (df[col].isnull().sum() / len(df)) * 100
+            if null_percentage > 90:
+                issues.append(
+                    f"Column '{col}' is mostly empty ({null_percentage:.1f}% null)"
+                )
 
-        return outliers
+        # Check for potential date columns that aren't recognized
+        for col in df.select_dtypes(include=["object"]).columns:
+            sample_values = df[col].dropna().head(10)
+            date_like_count = 0
+            for value in sample_values:
+                if self._looks_like_date(str(value)):
+                    date_like_count += 1
 
-    def get_sheet_names(self) -> List[str]:
-        """Get available sheet names"""
-        try:
-            with pd.ExcelFile(
-                self.file_path, engine=self.config["engine"]
-            ) as excel_file:
-                return excel_file.sheet_names
-        except Exception as e:
-            logger.error(f"Error getting sheet names: {e}")
-            return []
+            if date_like_count > len(sample_values) * 0.7:
+                issues.append(
+                    f"Column '{col}' might contain dates but wasn't recognized"
+                )
 
-    def read_chunks(self, chunk_size: int = 5000) -> Iterator[pd.DataFrame]:
-        """Read Excel file in chunks with error recovery"""
-        try:
-            target_sheet = self.sheet_name or 0
+        return issues
 
-            # Read full file first (for Excel, chunking requires full read)
-            df_full = pd.read_excel(
-                self.file_path,
-                sheet_name=target_sheet,
-                skiprows=self.config["skip_rows"],
-                header=0 if self.config["use_header"] else None,
-                engine=self.config["engine"],
-            )
+    def _looks_like_date(self, value: str) -> bool:
+        """Check if string looks like a date"""
+        import re
 
-            # Yield chunks
-            for start in range(0, len(df_full), chunk_size):
-                end = min(start + chunk_size, len(df_full))
-                chunk = df_full.iloc[start:end].copy()
+        date_patterns = [
+            r"\d{4}-\d{2}-\d{2}",  # YYYY-MM-DD
+            r"\d{2}/\d{2}/\d{4}",  # MM/DD/YYYY or DD/MM/YYYY
+            r"\d{2}-\d{2}-\d{4}",  # MM-DD-YYYY or DD-MM-YYYY
+            r"\d{1,2}/\d{1,2}/\d{4}",  # M/D/YYYY
+        ]
 
-                if not chunk.empty:
-                    yield chunk
-
-        except Exception as e:
-            logger.error(f"Error reading Excel chunks: {e}")
-            raise
-
-    def read_with_processing(self, chunk_size: int = 5000) -> Iterator[Dict[str, Any]]:
-        """Read Excel with automatic cleaning and type detection"""
-        file_info = self.get_file_info()
-
-        if "error" in file_info:
-            raise ValueError(f"Cannot read file: {file_info['error']}")
-
-        type_mapping = file_info.get("type_mapping", {})
-
-        for i, chunk in enumerate(self.read_chunks(chunk_size)):
-            try:
-                # Clean data
-                df_clean = self.cleaner.clean_dataframe(chunk)
-
-                # Convert types
-                df_typed = self.cleaner.convert_types(df_clean, type_mapping)
-
-                yield {
-                    "chunk_number": i + 1,
-                    "dataframe": df_typed,
-                    "rows_count": len(df_typed),
-                    "type_mapping": type_mapping if i == 0 else None,
-                    "file_info": file_info if i == 0 else None,
-                    "data_quality": (
-                        self._analyze_data_quality(df_typed) if i == 0 else None
-                    ),
-                }
-
-            except Exception as e:
-                logger.error(f"Error processing chunk {i + 1}: {e}")
-                # Skip problematic chunk and continue
-                continue
-
-
-class ExcelHandler:
-    """Main Excel handling facade with enhanced features"""
-
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or self._get_default_config()
-        self.reader: Optional[ExcelReader] = None
-        self.current_file_info: Optional[Dict[str, Any]] = None
-
-    def _get_default_config(self) -> Dict[str, Any]:
-        """Default handler configuration"""
-        return {
-            "reader": {
-                "max_file_size_mb": 100,
-                "sample_rows": 1000,
-                "engine": "openpyxl",
-            },
-            "cleaning": {
-                "clean_column_names": True,
-                "remove_empty_rows": True,
-                "trim_strings": True,
-            },
-            "validation": {
-                "max_file_size_mb": 100,
-                "allowed_extensions": [".xlsx", ".xls", ".xlsm"],
-            },
-        }
-
-    def load_file(
-        self, file_path: Union[str, Path], sheet_name: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Load Excel file and return comprehensive info"""
-        try:
-            self.reader = ExcelReader(file_path, sheet_name, self.config["reader"])
-            self.current_file_info = self.reader.get_file_info()
-
-            if "error" in self.current_file_info:
-                logger.error(f"Failed to load file: {self.current_file_info['error']}")
-            else:
-                logger.info(f"Successfully loaded Excel file: {file_path}")
-
-            return self.current_file_info
-
-        except Exception as e:
-            error_msg = f"Error loading Excel file: {str(e)}"
-            logger.error(error_msg)
-            return {"error": error_msg}
-
-    def get_sheets(self, file_path: Union[str, Path]) -> List[str]:
-        """Get available sheet names"""
-        try:
-            reader = ExcelReader(file_path, config=self.config["reader"])
-            return reader.get_sheet_names()
-        except Exception as e:
-            logger.error(f"Error getting sheets: {e}")
-            return []
-
-    def preview_data(self, rows: int = 10) -> Optional[pd.DataFrame]:
-        """Get preview of loaded data"""
-        if not self.current_file_info or "error" in self.current_file_info:
-            return None
-
-        sample_data = self.current_file_info.get("sample_data")
-        if sample_data is not None:
-            return sample_data.head(rows)
-
-        return None
-
-    def get_data_quality_report(self) -> Dict[str, Any]:
-        """Get comprehensive data quality report"""
-        if not self.current_file_info or "error" in self.current_file_info:
-            return {"error": "No file loaded"}
-
-        return self.current_file_info.get("data_quality", {})
-
-    def process_file(self, chunk_size: int = 5000) -> Iterator[Dict[str, Any]]:
-        """Process loaded file in chunks"""
-        if not self.reader:
-            raise ValueError("No file loaded. Call load_file() first.")
-
-        return self.reader.read_with_processing(chunk_size)
-
-    def validate_file(
-        self, file_path: Union[str, Path], max_size_mb: Optional[int] = None
-    ) -> Dict[str, Any]:
-        """Comprehensive file validation"""
-        max_size = max_size_mb or self.config["validation"]["max_file_size_mb"]
-
-        try:
-            reader = ExcelReader(file_path, config=self.config["reader"])
-            validation_result = reader.validate()
-
-            # Additional custom validations
-            if validation_result["valid"]:
-                file_info = reader.get_file_info()
-
-                # Size validation
-                file_size_mb = file_info.get("file_size_mb", 0)
-                if file_size_mb > max_size:
-                    validation_result["warnings"].append(
-                        f"Large file ({file_size_mb:.1f}MB) may impact performance"
-                    )
-
-                # Data quality warnings
-                data_quality = file_info.get("data_quality", {})
-
-                null_percentage = data_quality.get("null_percentage", 0)
-                if null_percentage > 50:
-                    validation_result["warnings"].append(
-                        f"High percentage of missing data ({null_percentage:.1f}%)"
-                    )
-
-                mixed_types = data_quality.get("mixed_types", [])
-                if mixed_types:
-                    validation_result["warnings"].append(
-                        f"Columns with mixed data types: {', '.join(mixed_types)}"
-                    )
-
-                # Add file info to result
-                validation_result["file_info"] = file_info
-
-            return validation_result
-
-        except Exception as e:
-            return {
-                "valid": False,
-                "errors": [f"Validation error: {str(e)}"],
-                "warnings": [],
-                "file_info": None,
-            }
+        for pattern in date_patterns:
+            if re.match(pattern, value.strip()):
+                return True
+        return False
 
     def create_template(
-        self, template_type: str, output_path: Union[str, Path], rows: int = 10
+        self,
+        template_type: str,
+        output_path: str,
+        rows: int = 100,
     ) -> Dict[str, Any]:
-        """Create Excel template files"""
+        """Create Excel template with improved functionality"""
         templates = {
             "employees": {
                 "columns": [
@@ -783,20 +384,46 @@ class ExcelHandler:
                     "hire_date",
                     "active",
                 ],
-                "sample_data": {
-                    "employee_id": ["EMP001", "EMP002", "EMP003"],
-                    "first_name": ["John", "Jane", "Mike"],
-                    "last_name": ["Doe", "Smith", "Johnson"],
-                    "email": [
+                "sample_data": [
+                    [
+                        "EMP001",
+                        "John",
+                        "Doe",
                         "john.doe@company.com",
-                        "jane.smith@company.com",
-                        "mike.johnson@company.com",
+                        "IT",
+                        "Developer",
+                        50000,
+                        "2023-01-15",
+                        True,
                     ],
-                    "department": ["IT", "HR", "Sales"],
-                    "position": ["Developer", "Manager", "Representative"],
-                    "salary": [50000, 75000, 45000],
-                    "hire_date": ["2023-01-15", "2022-03-10", "2023-05-20"],
-                    "active": [True, True, False],
+                    [
+                        "EMP002",
+                        "Jane",
+                        "Smith",
+                        "jane.smith@company.com",
+                        "HR",
+                        "Manager",
+                        65000,
+                        "2022-06-10",
+                        True,
+                    ],
+                    [
+                        "EMP003",
+                        "สมชาย",
+                        "ใจดี",
+                        "somchai@company.com",
+                        "Production",
+                        "Operator",
+                        35000,
+                        "2023-03-20",
+                        True,
+                    ],
+                ],
+                "validations": {
+                    "employee_id": "Must be unique",
+                    "email": "Valid email format required",
+                    "salary": "Numeric value > 0",
+                    "hire_date": "YYYY-MM-DD format",
                 },
             },
             "sales": {
@@ -809,180 +436,242 @@ class ExcelHandler:
                     "total_amount",
                     "sale_date",
                 ],
-                "sample_data": {
-                    "transaction_id": ["TXN001", "TXN002", "TXN003"],
-                    "customer_name": ["ABC Corp", "XYZ Ltd", "DEF Inc"],
-                    "product": ["Widget A", "Gadget B", "Tool C"],
-                    "quantity": [10, 5, 15],
-                    "unit_price": [25.50, 100.00, 15.75],
-                    "total_amount": [255.00, 500.00, 236.25],
-                    "sale_date": ["2024-01-01", "2024-01-02", "2024-01-03"],
-                },
+                "sample_data": [
+                    [
+                        "TXN001",
+                        "ABC Corp",
+                        "Widget A",
+                        10,
+                        25.50,
+                        255.00,
+                        "2024-01-01",
+                    ],
+                    [
+                        "TXN002",
+                        "XYZ Ltd",
+                        "Gadget B",
+                        5,
+                        100.00,
+                        500.00,
+                        "2024-01-02",
+                    ],
+                    [
+                        "TXN003",
+                        "DEF Inc",
+                        "Tool C",
+                        15,
+                        15.75,
+                        236.25,
+                        "2024-01-03",
+                    ],
+                ],
+            },
+            "inventory": {
+                "columns": [
+                    "product_id",
+                    "product_name",
+                    "category",
+                    "current_stock",
+                    "unit_price",
+                    "supplier",
+                    "warehouse",
+                ],
+                "sample_data": [
+                    [
+                        "PROD001",
+                        "Engine Part A1",
+                        "Auto Parts",
+                        150,
+                        500.00,
+                        "DENSO",
+                        "Bangkok",
+                    ],
+                    [
+                        "PROD002",
+                        "Brake System B2",
+                        "Brake Parts",
+                        85,
+                        1200.00,
+                        "Bosch",
+                        "Chonburi",
+                    ],
+                    [
+                        "PROD003",
+                        "ECU Module C3",
+                        "Electronics",
+                        45,
+                        2500.00,
+                        "Continental",
+                        "Rayong",
+                    ],
+                ],
             },
         }
 
         try:
-            if template_type not in templates:
+            template = templates.get(template_type)
+            if not template:
                 return {
                     "success": False,
-                    "message": f"Template type not found. Available: {list(templates.keys())}",
+                    "message": "Template type not found",
                 }
 
-            template_data = templates[template_type]
+            # Create workbook with validation
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Data"
 
-            # Create DataFrame
-            df_data = {}
-            for col in template_data["columns"]:
-                if col in template_data["sample_data"]:
-                    # Repeat sample data to reach desired rows
-                    sample_values = template_data["sample_data"][col]
-                    df_data[col] = (sample_values * ((rows // len(sample_values)) + 1))[
-                        :rows
+            # Add headers
+            for col, header in enumerate(template["columns"], 1):
+                cell = ws.cell(row=1, column=col, value=header)
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(start_color="E2E8F0", fill_type="solid")
+
+            # Add format guide
+            guide_sheet = wb.create_sheet("Guide")
+            guide_sheet.append(["Column", "Format", "Validation"])
+            for col in template["columns"]:
+                guide_sheet.append(
+                    [
+                        col,
+                        template.get("formats", {}).get(col, "Text"),
+                        template["validations"].get(col, ""),
                     ]
-                else:
-                    df_data[col] = [f"Sample {col} {i+1}" for i in range(rows)]
-
-            df = pd.DataFrame(df_data)
-
-            # Save to Excel
-            with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
-                df.to_excel(writer, sheet_name="Data", index=False)
-
-                # Add instructions sheet
-                instructions_df = pd.DataFrame(
-                    {
-                        "Instructions": [
-                            f"This is a {template_type} template",
-                            "Replace sample data with your actual data",
-                            "Maintain column structure for best results",
-                            "Date format: YYYY-MM-DD",
-                            "Boolean values: TRUE/FALSE or 1/0",
-                            "Save file before importing to DENSO888",
-                        ]
-                    }
                 )
-                instructions_df.to_excel(writer, sheet_name="Instructions", index=False)
 
+            # Save template
+            wb.save(output_path)
             return {
                 "success": True,
-                "message": f"Template created: {template_type}",
-                "output_file": str(output_path),
-                "rows": rows,
-                "columns": len(template_data["columns"]),
+                "message": "Template created successfully",
+                "file_path": output_path,
             }
 
         except Exception as e:
-            return {"success": False, "message": f"Template creation failed: {str(e)}"}
+            return {
+                "success": False,
+                "message": f"Error creating template: {str(e)}",
+            }
 
-
-# Utility functions
-def create_sample_excel(
-    file_path: Union[str, Path], template: str = "employees", rows: int = 100
-) -> bool:
-    """Create sample Excel file - wrapper function"""
-    try:
-        handler = ExcelHandler()
-        result = handler.create_template(template, file_path, rows)
-        return result["success"]
-    except Exception as e:
-        logger.error(f"Error creating sample Excel: {e}")
-        return False
-
-
-def validate_excel_file(file_path: Union[str, Path]) -> Dict[str, Any]:
-    """Validate Excel file - wrapper function"""
-    try:
-        handler = ExcelHandler()
-        return handler.validate_file(file_path)
-    except Exception as e:
-        logger.error(f"Error validating Excel file: {e}")
-        return {"valid": False, "errors": [str(e)], "warnings": []}
-        print(f"❌ Error: {e}")
-        return {"valid": False, "errors": [str(e)], "warnings": []}
-        print(f"❌ Error: {e}")
-                    "unit_price": [25.50, 100.00, 15.75],
-                    "total_amount": [255.00, 500.00, 236.25],
-                    "sale_date": ["2024-01-01", "2024-01-02", "2024-01-03"],
-                },
-            },
+    def batch_process_files(
+        self, file_paths: List[str], output_dir: str
+    ) -> Dict[str, Any]:
+        """Process multiple Excel files in batch"""
+        results = {
+            "processed": [],
+            "failed": [],
+            "total_files": len(file_paths),
+            "total_rows": 0,
         }
 
-        try:
-            if template_type not in templates:
-                return {
-                    "success": False,
-                    "message": f"Template type not found. Available: {list(templates.keys())}",
-                }
+        for file_path in file_paths:
+            try:
+                # Analyze file
+                file_info = self.analyze_file(file_path)
 
-            template_data = templates[template_type]
+                if "error" in file_info:
+                    results["failed"].append(
+                        {"file": file_path, "error": file_info["error"]}
+                    )
+                    continue
 
-            # Create DataFrame
-            df_data = {}
-            for col in template_data["columns"]:
-                if col in template_data["sample_data"]:
-                    # Repeat sample data to reach desired rows
-                    sample_values = template_data["sample_data"][col]
-                    df_data[col] = (sample_values * ((rows // len(sample_values)) + 1))[
-                        :rows
-                    ]
+                # Read and process
+                data = self.read_file(file_path)
+
+                # Generate output filename
+                input_path = Path(file_path)
+                output_file = Path(output_dir) / f"processed_{input_path.stem}.xlsx"
+
+                # Export processed data
+                if self.export_data(data, str(output_file)):
+                    results["processed"].append(
+                        {
+                            "input_file": file_path,
+                            "output_file": str(output_file),
+                            "rows": len(data),
+                            "columns": len(data[0]) if data else 0,
+                        }
+                    )
+                    results["total_rows"] += len(data)
                 else:
-                    df_data[col] = [f"Sample {col} {i+1}" for i in range(rows)]
+                    results["failed"].append(
+                        {"file": file_path, "error": "Export failed"}
+                    )
 
-            df = pd.DataFrame(df_data)
+            except Exception as e:
+                results["failed"].append({"file": file_path, "error": str(e)})
 
-            # Save to Excel
-            with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
-                df.to_excel(writer, sheet_name="Data", index=False)
+        return results
 
-                # Add instructions sheet
-                instructions_df = pd.DataFrame(
-                    {
-                        "Instructions": [
-                            f"This is a {template_type} template",
-                            "Replace sample data with your actual data",
-                            "Maintain column structure for best results",
-                            "Date format: YYYY-MM-DD",
-                            "Boolean values: TRUE/FALSE or 1/0",
-                            "Save file before importing to DENSO888",
-                        ]
-                    }
-                )
-                instructions_df.to_excel(writer, sheet_name="Instructions", index=False)
+    def get_column_suggestions(self, file_path: str) -> Dict[str, str]:
+        """Get column type suggestions for database import"""
+        try:
+            df = pd.read_excel(file_path, nrows=100)  # Sample for analysis
+            suggestions = {}
 
-            return {
-                "success": True,
-                "message": f"Template created: {template_type}",
-                "output_file": str(output_path),
-                "rows": rows,
-                "columns": len(template_data["columns"]),
-            }
+            for col in df.columns:
+                clean_col = self._clean_column_name(col)
+
+                # Analyze data type
+                non_null_data = df[col].dropna()
+                if len(non_null_data) == 0:
+                    suggestions[clean_col] = "TEXT"
+                    continue
+
+                # Check for numeric data
+                try:
+                    pd.to_numeric(non_null_data)
+                    # Check if integers
+                    if non_null_data.astype(str).str.match(r"^\d+$").all():
+                        suggestions[clean_col] = "INTEGER"
+                    else:
+                        suggestions[clean_col] = "REAL"
+                    continue
+                except Exception:
+                    pass
+
+                # Check for dates
+                try:
+                    pd.to_datetime(non_null_data)
+                    suggestions[clean_col] = "DATE"
+                    continue
+                except Exception:
+                    pass
+
+                # Check for boolean
+                unique_vals = set(str(v).lower() for v in non_null_data.unique())
+                bool_vals = {"true", "false", "yes", "no", "1", "0", "y", "n"}
+                if unique_vals.issubset(bool_vals):
+                    suggestions[clean_col] = "BOOLEAN"
+                    continue
+
+                # Default to text
+                suggestions[clean_col] = "TEXT"
+
+            return suggestions
 
         except Exception as e:
-            return {"success": False, "message": f"Template creation failed: {str(e)}"}
+            logger.error(f"Failed to get column suggestions: {e}")
+            return {}
+
+    def cleanup(self):
+        """Cleanup service resources"""
+        self.current_file = None
+        self.file_info = {}
 
 
 # Utility functions
-def create_sample_excel(
-    file_path: Union[str, Path], template: str = "employees", rows: int = 100
-) -> bool:
-    """Create sample Excel file - wrapper function"""
+def quick_excel_info(file_path: str) -> Dict[str, Any]:
+    """Quick way to get Excel file info"""
+    service = ExcelService()
+    return service.get_file_info(file_path)
+
+
+def convert_excel_to_csv(excel_path: str, csv_path: str) -> bool:
+    """Convert Excel to CSV"""
+    service = ExcelService()
     try:
-        handler = ExcelHandler()
-        result = handler.create_template(template, file_path, rows)
-        return result["success"]
-    except Exception as e:
-        logger.error(f"Error creating sample Excel: {e}")
+        data = service.read_file(excel_path)
+        return service.export_data(data, csv_path, "csv")
+    except Exception:
         return False
-
-
-def validate_excel_file(file_path: Union[str, Path]) -> Dict[str, Any]:
-    """Validate Excel file - wrapper function"""
-    try:
-        handler = ExcelHandler()
-        return handler.validate_file(file_path)
-    except Exception as e:
-        logger.error(f"Error validating Excel file: {e}")
-        return {"valid": False, "errors": [str(e)], "warnings": []}
-        print(f"❌ Error: {e}")
-        return {"valid": False, "errors": [str(e)], "warnings": []}
-        print(f"❌ Error: {e}")

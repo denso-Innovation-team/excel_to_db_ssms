@@ -3,7 +3,7 @@ services/excel_service.py
 Excel Processing Service - Clean & Focused - FIXED
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 import pandas as pd
 from pathlib import Path
 from datetime import datetime

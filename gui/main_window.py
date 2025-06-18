@@ -1,6 +1,6 @@
 """
-Unified Main Window - Complete DENSO888 Excel to Database System
-Combines both Pool System and General Features
+gui/main_window.py - FIXED VERSION
+Complete DENSO888 Main Window Implementation
 """
 
 import tkinter as tk
@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 class MainWindow:
-    """Unified main window for DENSO888 system"""
+    """Complete main window for DENSO888 system"""
 
     def __init__(self, controller=None, pool_controller=None):
         # Support both controllers
-        self.controller = controller  # Original app controller
-        self.pool_controller = pool_controller  # Pool controller
+        self.controller = controller
+        self.pool_controller = pool_controller
 
         self.root = tk.Tk()
         self.setup_window()
@@ -41,7 +41,7 @@ class MainWindow:
         self.root.grid_rowconfigure(1, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
 
-        # Set window icon
+        # Set window icon (optional)
         try:
             self.root.iconbitmap("assets/icon.ico")
         except:
@@ -63,11 +63,11 @@ class MainWindow:
         self.notebook.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
 
         # Create all tabs
-        self.create_pool_tabs()  # Pool system tabs
-        self.create_general_tabs()  # General system tabs
+        self.create_pool_tabs()
+        self.create_general_tabs()
 
         # Status bar
-        self.create_status_bar()
+        self.create_status_bar(main_frame)
 
     def create_header(self, parent):
         """Create header with title and connection status"""
@@ -96,18 +96,37 @@ class MainWindow:
         self.mode_label = ttk.Label(status_frame, text="Pool Mode", foreground="blue")
         self.mode_label.pack(side="right", padx=(10, 0))
 
+    def create_status_bar(self, parent):
+        """Create status bar"""
+        status_frame = ttk.Frame(parent)
+        status_frame.grid(row=2, column=0, sticky="ew", pady=(5, 0))
+        status_frame.grid_columnconfigure(0, weight=1)
+
+        # Status message
+        self.status_text = ttk.Label(
+            status_frame, text="Ready", relief="sunken", anchor="w"
+        )
+        self.status_text.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+
+        # Connection stats
+        self.stats_text = ttk.Label(
+            status_frame, text="Not Connected", relief="sunken", width=20
+        )
+        self.stats_text.grid(row=0, column=1, sticky="e")
+
     def create_pool_tabs(self):
         """Create Pool System specific tabs"""
-        
-        # 1. Database Tab
+
+        # 1. DATABASE CONNECTION TAB
         from gui.components.database_tab import DatabaseTab
+
         self.db_tab = DatabaseTab(
             self.notebook,
             callbacks={
                 "test": self.test_connection,
                 "connect": self.connect_database,
-                "disconnect": self.disconnect_database
-            }
+                "disconnect": self.disconnect_database,
+            },
         )
         self.notebook.add(self.db_tab.get_widget(), text="🔗 Database")
 
@@ -271,7 +290,6 @@ class MainWindow:
             import_btn_frame,
             text="🚀 Start Import",
             command=self.start_import,
-            style="Accent.TButton",
         )
         self.import_btn.pack(side="left", padx=(0, 10))
 
@@ -303,6 +321,18 @@ class MainWindow:
         logs_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(logs_frame, text="📝 Logs")
 
+        # Log controls
+        log_controls = ttk.Frame(logs_frame)
+        log_controls.pack(fill="x", pady=(0, 10))
+
+        ttk.Button(log_controls, text="🔄 Refresh", command=self.load_recent_logs).pack(
+            side="left", padx=(0, 10)
+        )
+
+        ttk.Button(log_controls, text="🗑️ Clear", command=self.clear_logs).pack(
+            side="left"
+        )
+
         self.log_text = tk.Text(logs_frame, height=25, state="disabled", wrap="word")
         log_scroll = ttk.Scrollbar(
             logs_frame, orient="vertical", command=self.log_text.yview
@@ -314,6 +344,22 @@ class MainWindow:
 
         # Load recent logs
         self.load_recent_logs()
+
+    def setup_events(self):
+        """Setup event handlers"""
+        if self.pool_controller:
+            # Register pool controller event callbacks
+            self.pool_controller.register_callback(
+                "database_connected", self.on_database_connected
+            )
+            self.pool_controller.register_callback("excel_loaded", self.on_excel_loaded)
+            self.pool_controller.register_callback(
+                "import_progress", self.on_import_progress
+            )
+            self.pool_controller.register_callback(
+                "import_completed", self.on_import_completed
+            )
+            self.pool_controller.register_callback("import_error", self.on_import_error)
 
     def get_connection_config(self):
         """Get connection configuration"""
@@ -532,7 +578,7 @@ class MainWindow:
             excel_col = self.mapping_tree.item(item)["values"][0]
             if excel_col in mappings:
                 values = list(self.mapping_tree.item(item)["values"])
-                values[1] = mappings[excel_col]  # Update db_column
+                values[1] = mappings[excel_col]
                 self.mapping_tree.item(item, values=values)
 
         self.update_status(f"Auto-mapped {len(mappings)} fields")
@@ -541,7 +587,7 @@ class MainWindow:
         """Clear all mappings"""
         for item in self.mapping_tree.get_children():
             values = list(self.mapping_tree.item(item)["values"])
-            values[1] = ""  # Clear db_column
+            values[1] = ""
             self.mapping_tree.item(item, values=values)
 
         self.update_status("Mappings cleared")
@@ -553,7 +599,7 @@ class MainWindow:
 
         for item in self.mapping_tree.get_children():
             values = self.mapping_tree.item(item)["values"]
-            if values[1]:  # Has db_column mapping
+            if values[1]:
                 mapped_count += 1
 
         if mapped_count == 0:
@@ -635,11 +681,12 @@ class MainWindow:
     # Event Handlers
     def on_database_connected(self, data):
         """Handle database connected event"""
-        pass  # Already handled in handle_connect_result
+        self.connected = True
+        self.conn_status.config(text="🟢 Connected", foreground="green")
 
     def on_excel_loaded(self, data):
         """Handle Excel loaded event"""
-        pass  # Already handled in handle_excel_result
+        self.excel_loaded = True
 
     def on_import_progress(self, data):
         """Handle import progress"""
@@ -670,13 +717,6 @@ class MainWindow:
 
         self.update_status("Import completed successfully")
         messagebox.showinfo("Import Complete", result_msg)
-
-        # Update connection stats
-        if self.pool_controller:
-            stats = self.pool_controller.get_connection_stats()
-            self.stats_text.config(
-                text=f"Pool: {stats.get('in_use_connections', 0)}/{stats.get('total_connections', 0)} connections"
-            )
 
     def on_import_error(self, data):
         """Handle import error"""
@@ -716,200 +756,11 @@ class MainWindow:
         except Exception as e:
             logger.error(f"Failed to load logs: {e}")
 
-    def update_status(self, message):
-        """Update status bar"""
-        self.status_text.config(text=message)
-
-        # Auto-refresh logs periodically
-        self.root.after(5000, self.refresh_logs)
-
-    def refresh_logs(self):
-        """Refresh logs display"""
-        if (
-            self.notebook.index(self.notebook.select()) == len(self.notebook.tabs()) - 1
-        ):  # Logs tab is active
-            self.load_recent_logs()
-
-    def run(self):
-        """Start the GUI application"""
-        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-
-        # Show startup message
-        self.update_status("DENSO888 Professional System Ready")
-
-        # Start main loop
-        self.root.mainloop()
-
-    def on_closing(self):
-        """Handle window closing"""
-        if self.import_in_progress:
-            if not messagebox.askyesno(
-                "Exit", "Import in progress. Are you sure you want to exit?"
-            ):
-                return
-
-        try:
-            # Cleanup controllers
-            if self.pool_controller:
-                self.pool_controller.cleanup()
-            if self.controller:
-                self.controller.cleanup()
-        except Exception as e:
-            logger.error(f"Cleanup error: {e}")
-
-        self.root.destroy()
-            self.pool_controller.import_data(table_name, options)
-
-    # Event Handlers
-    def on_database_connected(self, data):
-        """Handle database connected event"""
-        pass  # Already handled in handle_connect_result
-
-    def on_excel_loaded(self, data):
-        """Handle Excel loaded event"""
-        pass  # Already handled in handle_excel_result
-
-    def on_import_progress(self, data):
-        """Handle import progress"""
-        progress = data.get("progress", 0)
-        status = data.get("status", "Processing...")
-
-        self.progress_var.set(progress)
-        self.progress_label.config(text=status)
-        self.update_status(f"Import: {progress}% - {status}")
-
-    def on_import_completed(self, data):
-        """Handle import completion"""
-        self.import_in_progress = False
-        self.import_btn.config(state="normal", text="🚀 Start Import")
-
-        rows = data.get("rows", 0)
-        table = data.get("table", "")
-
-        result_msg = f"✅ Import completed successfully!\nTable: {table}\nRows imported: {rows:,}"
-
-        self.results_text.config(state="normal")
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.results_text.insert(
-            tk.END, f"\n[{timestamp}] {result_msg}\n" + "=" * 60 + "\n"
-        )
-        self.results_text.config(state="disabled")
-        self.results_text.see(tk.END)
-
-        self.update_status("Import completed successfully")
-        messagebox.showinfo("Import Complete", result_msg)
-
-        # Update connection stats
-        if self.pool_controller:
-            stats = self.pool_controller.get_connection_stats()
-            self.stats_text.config(
-                text=f"Pool: {stats.get('in_use_connections', 0)}/{stats.get('total_connections', 0)} connections"
-            )
-
-    def on_import_error(self, data):
-        """Handle import error"""
-        self.import_in_progress = False
-        self.import_btn.config(state="normal", text="🚀 Start Import")
-
-        error = data.get("error", "Unknown error")
-        error_msg = f"❌ Import failed: {error}"
-
-        self.results_text.config(state="normal")
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.results_text.insert(
-            tk.END, f"\n[{timestamp}] {error_msg}\n" + "=" * 60 + "\n"
-        )
-        self.results_text.config(state="disabled")
-        self.results_text.see(tk.END)
-
-        self.update_status("Import failed")
-        messagebox.showerror("Import Error", error_msg)
-
-    # Utility Methods
-    def update_status(self, message):
-        """Update status bar"""
-        self.status_text.config(text=message)
-
-        # Auto-refresh logs periodically
-        self.root.after(5000, self.refresh_logs)
-
-    def refresh_logs(self):
-        """Refresh logs display"""
-        if (
-            self.notebook.index(self.notebook.select()) == len(self.notebook.tabs()) - 1
-        ):  # Logs tab is active
-            self.load_recent_logs()
-
-    def run(self):
-        """Start the GUI application"""
-        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-
-        # Show startup message
-        self.update_status("DENSO888 Professional System Ready")
-
-        # Start main loop
-        self.root.mainloop()
-
-    def on_closing(self):
-        """Handle window closing"""
-        if self.import_in_progress:
-            if not messagebox.askyesno(
-                "Exit", "Import in progress. Are you sure you want to exit?"
-            ):
-                return
-
-        try:
-            # Cleanup controllers
-            if self.pool_controller:
-                self.pool_controller.cleanup()
-            if self.controller:
-                self.controller.cleanup()
-        except Exception as e:
-            logger.error(f"Cleanup error: {e}")
-
-        self.root.destroy()
-            stats = self.pool_controller.get_connection_stats()
-            self.stats_text.config(
-                text=f"Pool: {stats.get('in_use_connections', 0)}/{stats.get('total_connections', 0)} connections"
-            )
-
-    def on_import_error(self, data):
-        """Handle import error"""
-        self.import_in_progress = False
-        self.import_btn.config(state="normal", text="🚀 Start Import")
-
-        error = data.get("error", "Unknown error")
-        error_msg = f"❌ Import failed: {error}"
-
-        self.results_text.config(state="normal")
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.results_text.insert(
-            tk.END, f"\n[{timestamp}] {error_msg}\n" + "=" * 60 + "\n"
-        )
-        self.results_text.config(state="disabled")
-        self.results_text.see(tk.END)
-
-        self.update_status("Import failed")
-        messagebox.showerror("Import Error", error_msg)
-
-    # Utility Methods
-    def load_recent_logs(self):
-        """Load recent application logs"""
-        try:
-            log_file = (
-                Path("logs") / f"denso888_{datetime.now().strftime('%Y%m%d')}.log"
-            )
-            if log_file.exists():
-                with open(log_file, "r", encoding="utf-8") as f:
-                    logs = f.read()
-
-                self.log_text.config(state="normal")
-                self.log_text.delete(1.0, tk.END)
-                self.log_text.insert(1.0, logs)
-                self.log_text.config(state="disabled")
-                self.log_text.see(tk.END)
-        except Exception as e:
-            logger.error(f"Failed to load logs: {e}")
+    def clear_logs(self):
+        """Clear log display"""
+        self.log_text.config(state="normal")
+        self.log_text.delete(1.0, tk.END)
+        self.log_text.config(state="disabled")
 
     def update_status(self, message):
         """Update status bar"""
@@ -953,7 +804,3 @@ class MainWindow:
             logger.error(f"Cleanup error: {e}")
 
         self.root.destroy()
-
-
-# Import required modules at the top
-from datetime import datetime
