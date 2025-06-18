@@ -1,9 +1,37 @@
-# DENSO888 Professional Core Dependencies
-pandas>=2.0.0
-openpyxl>=3.1.0
-sqlalchemy>=2.0.0
-pyodbc>=4.0.39
-python-dotenv>=1.0.0
-tqdm>=4.65.0
-cryptography>=41.0.0
-pyyaml>=6.0.0
+# DENSO888 Professional - Python 3.13.5 Dependencies
+# เฮียตอมจัดหั้ย!!! 🚀
+
+# ==== CORE ====
+pandas>=2.2.0
+openpyxl>=3.1.5
+sqlalchemy>=2.0.25
+pyodbc>=5.2.0
+psutil>=6.1.0
+python-dotenv>=1.0.1
+cryptography>=42.0.0
+pyyaml>=6.0.2
+tqdm>=4.67.1
+
+# ==== GUI & VISUALIZATION ====
+pillow>=11.0.0
+matplotlib>=3.9.0
+rich>=14.0.0
+
+# ==== TESTING & DEV ====
+pytest>=8.3.0
+black>=24.10.0
+mypy>=1.13.0
+
+# ==== DATA & VALIDATION ====
+numpy>=2.1.0
+jsonschema>=4.23.0
+faker>=33.1.0
+
+# ==== PERFORMANCE ====
+memory-profiler>=0.61.0
+diskcache>=5.6.3
+
+# ==== OPTIONAL ENHANCEMENTS ====
+plotly>=5.24.0
+fastapi>=0.115.0
+sentry-sdk>=2.19.0
