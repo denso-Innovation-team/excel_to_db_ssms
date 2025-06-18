@@ -1,26 +1,24 @@
 """
 services/connection_pool_service.py
-FIXED: SQL Server + SQLite Connection Pool with Auto-Creation
+Production-Ready Database Connection Pool Service
+Supports both SQLite and SQL Server with automatic failover
 """
 
 import sqlite3
 import threading
-from typing import Dict, Any, Optional, Tuple
-import logging
-from sqlalchemy import create_engine, exc, event
-from sqlalchemy.pool import QueuePool
-from sqlalchemy.exc import SQLAlchemyError
-from contextlib import contextmanager
-import os
 import queue
 import time
+import os
+from typing import Dict, Any, Optional, Tuple, List
 from datetime import datetime
+from contextlib import contextmanager
+import logging
 
 logger = logging.getLogger(__name__)
 
 
 class ConnectionPool:
-    """Production-ready connection pool with auto-creation support"""
+    """Thread-safe connection pool with automatic management"""
 
     def __init__(
         self,
@@ -33,23 +31,25 @@ class ConnectionPool:
         self.pool_size = pool_size
         self.max_overflow = max_overflow
         self.timeout = timeout
+
+        # Pool management
         self.connections = queue.Queue(maxsize=pool_size)
         self.checked_out = set()
         self.overflow_connections = set()
         self.lock = threading.RLock()
+
+        # Statistics
         self.created_at = datetime.now()
         self.total_connections_created = 0
         self.connection_errors = 0
         self._shutdown = False
 
-        # Auto-create database if needed
+        # Initialize pool
         self._ensure_database_exists()
-
-        # Pre-populate pool
         self._initialize_pool()
 
     def _ensure_database_exists(self):
-        """Auto-create database if it doesn't exist"""
+        """Auto-create database if needed"""
         db_type = self.connection_config.get("type", "sqlite")
 
         if db_type == "sqlite":
@@ -69,7 +69,6 @@ class ConnectionPool:
                 try:
                     conn = sqlite3.connect(db_file)
                     cursor = conn.cursor()
-                    # Create a basic metadata table
                     cursor.execute(
                         """
                         CREATE TABLE IF NOT EXISTS denso888_metadata (
@@ -109,14 +108,13 @@ class ConnectionPool:
 
         while time.time() - start_time < timeout:
             try:
-                # Try to get from pool (non-blocking)
+                # Try to get from pool
                 conn = self.connections.get_nowait()
                 if self._is_connection_valid(conn):
                     with self.lock:
                         self.checked_out.add(conn)
                     return conn
                 else:
-                    # Connection is invalid, discard it
                     try:
                         conn.close()
                     except:
@@ -140,7 +138,6 @@ class ConnectionPool:
                         self.connection_errors += 1
                         logger.error(f"Failed to create connection: {e}")
 
-            # Wait and retry
             time.sleep(0.1)
 
         raise Exception(f"Connection timeout after {timeout} seconds")
@@ -189,7 +186,7 @@ class ConnectionPool:
                     self.overflow_connections.remove(conn)
 
     def _create_connection(self):
-        """Create new database connection with proper error handling"""
+        """Create new database connection"""
         db_type = self.connection_config.get("type", "sqlite")
 
         if db_type == "sqlite":
@@ -204,11 +201,9 @@ class ConnectionPool:
         try:
             db_file = self.connection_config.get("file", "denso888_data.db")
 
-            # Ensure absolute path
             if not os.path.isabs(db_file):
                 db_file = os.path.abspath(db_file)
 
-            # Create connection
             conn = sqlite3.connect(
                 db_file,
                 check_same_thread=False,
@@ -216,7 +211,6 @@ class ConnectionPool:
                 isolation_level=None,  # Autocommit mode
             )
 
-            # Enable row factory for dict-like access
             conn.row_factory = sqlite3.Row
 
             # Apply SQLite optimizations
@@ -235,7 +229,7 @@ class ConnectionPool:
             raise
 
     def _create_sqlserver_connection(self):
-        """Create SQL Server connection with proper driver handling"""
+        """Create SQL Server connection"""
         try:
             import pyodbc
         except ImportError:
@@ -247,7 +241,6 @@ class ConnectionPool:
             server = self.connection_config.get("server", "")
             database = self.connection_config.get("database", "")
 
-            # Build connection string
             if self.connection_config.get("use_windows_auth", True):
                 conn_str = (
                     f"DRIVER={{ODBC Driver 17 for SQL Server}};"
@@ -270,7 +263,6 @@ class ConnectionPool:
                     f"Encrypt=no;"
                 )
 
-            # Create connection with timeout
             conn = pyodbc.connect(conn_str, timeout=30)
             conn.autocommit = False
 
@@ -364,196 +356,220 @@ class ConnectionPool:
 
 
 class ConnectionPoolService:
-    """Database connection pool service with enhanced features"""
+    """Enhanced connection pool service with multiple database support"""
 
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        self.engine = None
-        self.pool_size = config.get("pool_size", 5)
-        self.timeout = config.get("timeout", 30)
-        self._setup_engine()
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or {}
+        self.pools: Dict[str, ConnectionPool] = {}
+        self.current_pool: Optional[ConnectionPool] = None
+        self.current_config: Optional[Dict[str, Any]] = None
+        self._lock = threading.RLock()
 
-    def _setup_engine(self):
-        """Setup SQLAlchemy engine with connection pool"""
-        try:
-            conn_str = self._build_connection_string()
-
-            self.engine = create_engine(
-                conn_str,
-                poolclass=QueuePool,
-                pool_size=self.pool_size,
-                max_overflow=2,
-                pool_timeout=self.timeout,
-                pool_pre_ping=True,
-            )
-
-            # Setup event listeners
-            event.listen(self.engine, "checkout", self._on_checkout)
-            event.listen(self.engine, "checkin", self._on_checkin)
-
-            logger.info("Connection pool initialized")
-
-        except Exception as e:
-            logger.error(f"Failed to setup connection pool: {e}")
-            raise
-
-    def _build_connection_string(self) -> str:
-        """Build connection string based on config"""
-        if self.config["type"] == "sqlite":
-            return f"sqlite:///{self.config['file']}"
-
-        elif self.config["type"] == "sqlserver":
-            params = []
-
-            # Server
-            server = self.config["server"]
-            if "\\" in server:  # Named instance
-                params.append(f"SERVER={server}")
-            else:
-                host, port = server.split(":") if ":" in server else (server, "1433")
-                params.append(f"SERVER={host},{port}")
-
-            # Database
-            params.append(f"DATABASE={self.config['database']}")
-
-            # Authentication
-            if self.config.get("use_windows_auth", True):
-                params.append("Trusted_Connection=yes")
-            else:
-                params.append(f"UID={self.config['username']}")
-                params.append(f"PWD={self.config['password']}")
-
-            # Additional params
-            params.extend(
-                [
-                    "DRIVER={ODBC Driver 17 for SQL Server}",
-                    "TrustServerCertificate=yes",
-                    f"Connection Timeout={self.timeout}",
-                ]
-            )
-
-            return "mssql+pyodbc:///?" + "&".join(params)
-
-        raise ValueError(f"Unsupported database type: {self.config['type']}")
-
-    @contextmanager
-    def get_connection(self):
-        """Get connection from pool with auto-release"""
-        connection = None
-        try:
-            connection = self.engine.connect()
-            yield connection
-        finally:
-            if connection:
-                connection.close()
-
-    def test_connection(self) -> Tuple[bool, str]:
-        """Test database connection"""
-        try:
-            with self.get_connection() as conn:
-                conn.execute("SELECT 1")
-            return True, "Connection successful"
-        except SQLAlchemyError as e:
-            return False, str(e)
-
-    def get_pool_stats(self) -> Dict[str, int]:
-        """Get connection pool statistics"""
-        if not self.engine:
-            return {}
-
-        return {
-            "pool_size": self.pool_size,
-            "current_connections": self.engine.pool.size(),
-            "in_use_connections": self.engine.pool.checkedin(),
-            "overflow_connections": self.engine.pool.overflow(),
+        # Service statistics
+        self.service_stats = {
+            "connections_created": 0,
+            "queries_executed": 0,
+            "errors_count": 0,
+            "service_start_time": datetime.now(),
         }
 
-    def _on_checkout(self, dbapi_connection, connection_record, connection_proxy):
-        """Connection checkout event handler"""
-        logger.debug("Connection checked out from pool")
-
-    def _on_checkin(self, dbapi_connection, connection_record):
-        """Connection checkin event handler"""
-        logger.debug("Connection returned to pool")
-
-    def cleanup(self):
-        """Cleanup connection pool"""
-        if self.engine:
-            self.engine.dispose()
-            logger.info("Connection pool disposed")
-
-    def connect_database(self, config: Dict[str, Any]) -> Tuple[bool, str]:
-        """Connect to database with enhanced error handling"""
+    def connect_database(self, config: Dict[str, Any]) -> bool:
+        """Connect to database with connection pooling"""
         try:
-            if config["type"] == "sqlite":
-                conn_str = f"sqlite:///{config['file']}"
-            else:
-                conn_str = self._build_mssql_conn_str(config)
+            # Create pool key
+            pool_key = self._generate_pool_key(config)
 
-            # Test connection before creating pool
-            test_engine = create_engine(conn_str)
-            with test_engine.connect() as conn:
-                conn.execute("SELECT 1")
+            with self._lock:
+                # Reuse existing pool if available
+                if pool_key in self.pools:
+                    self.current_pool = self.pools[pool_key]
+                    self.current_config = config
+                    return True
 
-            # Create connection pool
-            self.engine = create_engine(
-                conn_str,
-                pool_size=5,
-                max_overflow=10,
-                pool_timeout=30,
-                pool_pre_ping=True,
-            )
+                # Create new pool
+                pool = ConnectionPool(
+                    config,
+                    pool_size=config.get("pool_size", 5),
+                    max_overflow=config.get("max_overflow", 10),
+                    timeout=config.get("timeout", 30),
+                )
 
-            return True, "Connected successfully"
+                # Test pool with a connection
+                with pool.get_managed_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT 1")
+                    cursor.close()
 
-        except exc.OperationalError as e:
-            error = str(e)
-            if "timeout" in error.lower():
-                return False, "Connection timeout - check server availability"
-            elif "login failed" in error.lower():
-                return False, "Login failed - check credentials"
-            else:
-                return False, f"Connection failed: {error}"
+                # Store pool
+                self.pools[pool_key] = pool
+                self.current_pool = pool
+                self.current_config = config
 
-        except exc.DBAPIError as e:
-            return False, f"Database API error: {str(e)}"
+                logger.info(
+                    f"Connected to {config.get('type')} database with connection pool"
+                )
+                return True
 
         except Exception as e:
-            return False, f"Unexpected error: {str(e)}"
+            logger.error(f"Failed to connect to database: {e}")
+            return False
 
-    def _build_mssql_conn_str(self, config: Dict[str, Any]) -> str:
-        """Build SQL Server connection string safely"""
+    def execute_query(self, query: str, params: tuple = ()) -> Tuple[bool, Any]:
+        """Execute query using connection pool"""
+        if not self.current_pool:
+            return False, "No database connection available"
+
         try:
-            server = config["server"]
-            database = config["database"]
+            with self.current_pool.get_managed_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
 
-            # Build connection string
-            if config.get("use_windows_auth", True):
-                conn_str = (
-                    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-                    f"SERVER={server};"
-                    f"DATABASE={database};"
-                    f"Trusted_Connection=yes;"
-                    f"TrustServerCertificate=yes;"
-                    f"Encrypt=no;"
-                )
-            else:
-                username = config["username"]
-                password = config["password"]
-                conn_str = (
-                    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-                    f"SERVER={server};"
-                    f"DATABASE={database};"
-                    f"UID={username};"
-                    f"PWD={password};"
-                    f"TrustServerCertificate=yes;"
-                    f"Encrypt=no;"
-                )
+                if query.strip().upper().startswith("SELECT"):
+                    if hasattr(cursor, "fetchall"):
+                        rows = cursor.fetchall()
+                        # Convert to list of dicts for consistency
+                        if rows and hasattr(rows[0], "keys"):
+                            result = [dict(row) for row in rows]
+                        else:
+                            columns = (
+                                [desc[0] for desc in cursor.description]
+                                if cursor.description
+                                else []
+                            )
+                            result = [dict(zip(columns, row)) for row in rows]
+                        return True, result
+                    return True, []
+                else:
+                    conn.commit()
+                    affected_rows = (
+                        cursor.rowcount if hasattr(cursor, "rowcount") else 0
+                    )
+                    return (
+                        True,
+                        f"Query executed successfully. {affected_rows} rows affected.",
+                    )
 
-            return conn_str
+        except Exception as e:
+            logger.error(f"Query execution failed: {e}")
+            self.service_stats["errors_count"] += 1
+            return False, str(e)
 
-        except KeyError as e:
-            raise ValueError(f"Missing required config: {str(e)}")
+    def get_tables(self) -> List[str]:
+        """Get list of database tables"""
+        if not self.current_pool or not self.current_config:
+            return []
+
+        try:
+            db_type = self.current_config.get("type", "sqlite")
+
+            if db_type == "sqlite":
+                query = """
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name NOT LIKE 'sqlite_%'
+                    ORDER BY name
+                """
+            else:  # SQL Server
+                query = """
+                    SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
+                    WHERE TABLE_TYPE='BASE TABLE'
+                    ORDER BY TABLE_NAME
+                """
+
+            success, result = self.execute_query(query)
+            if success and isinstance(result, list):
+                return [row.get("name") or row.get("TABLE_NAME", "") for row in result]
+
+            return []
+
+        except Exception as e:
+            logger.error(f"Failed to get tables: {e}")
+            return []
+
+    def get_table_schema(self, table_name: str) -> List[Dict[str, Any]]:
+        """Get table schema information"""
+        if not self.current_pool or not self.current_config:
+            return []
+
+        try:
+            db_type = self.current_config.get("type", "sqlite")
+
+            if db_type == "sqlite":
+                query = f"PRAGMA table_info([{table_name}])"
+            else:  # SQL Server
+                query = """
+                    SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_NAME = ?
+                    ORDER BY ORDINAL_POSITION
+                """
+
+            params = () if db_type == "sqlite" else (table_name,)
+            success, result = self.execute_query(query, params)
+
+            if success and isinstance(result, list):
+                schema = []
+                for row in result:
+                    if db_type == "sqlite":
+                        schema.append(
+                            {
+                                "name": row.get("name", ""),
+                                "type": row.get("type", "TEXT"),
+                                "nullable": not row.get("notnull", 0),
+                                "default": row.get("dflt_value"),
+                                "primary_key": bool(row.get("pk", 0)),
+                            }
+                        )
+                    else:  # SQL Server
+                        schema.append(
+                            {
+                                "name": row.get("COLUMN_NAME", ""),
+                                "type": row.get("DATA_TYPE", "VARCHAR"),
+                                "nullable": row.get("IS_NULLABLE", "YES") == "YES",
+                                "default": row.get("COLUMN_DEFAULT"),
+                                "primary_key": False,
+                            }
+                        )
+                return schema
+
+            return []
+
+        except Exception as e:
+            logger.error(f"Failed to get table schema: {e}")
+            return []
+
+    def bulk_insert(
+        self, table_name: str, data: List[Dict], batch_size: int = 1000
+    ) -> bool:
+        """Bulk insert data with batching"""
+        if not self.current_pool or not data:
+            return False
+
+        try:
+            # Get first row to determine columns
+            sample_row = data[0]
+            columns = list(sample_row.keys())
+
+            # Auto-create table if needed
+            self._ensure_table_exists(table_name, sample_row)
+
+            # Prepare insert SQL
+            placeholders = ", ".join(["?" for _ in columns])
+            columns_str = ", ".join([f"[{col}]" for col in columns])
+            insert_sql = (
+                f"INSERT INTO [{table_name}] ({columns_str}) VALUES ({placeholders})"
+            )
+
+            total_inserted = 0
+
+            with self.current_pool.get_managed_connection() as conn:
+                cursor = conn.cursor()
+
+                # Insert in batches
+                for i in range(0, len(data), batch_size):
+                    batch = data[i : i + batch_size]
+                    batch_values = []
+
+                    for row in batch:
                         values = [row.get(col) for col in columns]
                         batch_values.append(values)
 
@@ -575,15 +591,11 @@ class ConnectionPoolService:
         try:
             # Check if table exists
             if self.current_config.get("type") == "sqlite":
-                check_query = """
-                    SELECT name FROM sqlite_master 
-                    WHERE type='table' AND name = ?
-                """
+                check_query = (
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name = ?"
+                )
             else:
-                check_query = """
-                    SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
-                    WHERE TABLE_NAME = ?
-                """
+                check_query = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = ?"
 
             success, result = self.execute_query(check_query, (table_name,))
 
@@ -656,6 +668,16 @@ class ConnectionPoolService:
         clean = re.sub(r"_+", "_", clean)
         clean = clean.strip("_").lower()
         return clean if clean else "column"
+
+    def _generate_pool_key(self, config: Dict[str, Any]) -> str:
+        """Generate unique key for connection pool"""
+        db_type = config.get("type", "sqlite")
+        if db_type == "sqlite":
+            return f"sqlite:{config.get('file', 'default.db')}"
+        else:
+            server = config.get("server", "")
+            database = config.get("database", "")
+            return f"sqlserver:{server}:{database}"
 
     def get_service_stats(self) -> Dict[str, Any]:
         """Get service statistics"""
