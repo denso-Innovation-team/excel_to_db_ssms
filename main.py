@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """
-DENSO888 Excel to Database Pool System - Fixed Version
-Enhanced Excel to SQL Server Import System with Connection Pooling
-Created by: Thammaphon Chittasuwanna (SDM) | Innovation Department
-Version: 3.0.0
+DENSO888 Excel to Database Pool System - Professional Edition
 """
 
 import sys
@@ -17,55 +14,94 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def setup_environment():
-    """Setup logging and required directories"""
-    # Create required directories
-    dirs = ["logs", "data", "backups", "exports", "temp", "config"]
-    for dir_name in dirs:
-        (PROJECT_ROOT / dir_name).mkdir(exist_ok=True)
+    """Setup enhanced logging and project structure"""
+    # Create required directories with proper permissions
+    dirs = [
+        "logs",  # Application logs
+        "data",  # Database files
+        "backups",  # Backup files
+        "exports",  # Export results
+        "temp",  # Temporary files
+        "config",  # Configuration files
+        "cache",  # Cache files
+    ]
 
-    # Setup logging
+    for dir_name in dirs:
+        dir_path = PROJECT_ROOT / dir_name
+        dir_path.mkdir(exist_ok=True)
+
+        # Set proper permissions
+        try:
+            dir_path.chmod(0o755)  # rwxr-xr-x
+        except:
+            pass
+
+    # Setup enhanced logging
     log_file = (
         PROJECT_ROOT / "logs" / f'denso888_{datetime.now().strftime("%Y%m%d")}.log'
     )
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[
             logging.FileHandler(log_file, encoding="utf-8"),
             logging.StreamHandler(),
+            logging.handlers.RotatingFileHandler(
+                log_file, maxBytes=10_000_000, backupCount=5, encoding="utf-8"  # 10MB
+            ),
         ],
     )
 
     logger = logging.getLogger(__name__)
-    logger.info("🏭 DENSO888 Pool System Starting...")
+    logger.info("🏭 DENSO888 Professional System Starting...")
     return logger
 
 
 def check_dependencies():
-    """Check critical dependencies"""
+    """Enhanced dependency checker"""
     required = {
-        "pandas": "Excel processing",
-        "openpyxl": "Excel reading",
-        "sqlalchemy": "Database connectivity",
-        "tkinter": "GUI framework",
+        "pandas": ("Excel processing", "2.0.0"),
+        "openpyxl": ("Excel reading", "3.1.0"),
+        "sqlalchemy": ("Database connectivity", "2.0.0"),
+        "tkinter": ("GUI framework", None),
+        "pyodbc": ("SQL Server connectivity", "4.0.39"),
+        "python-dotenv": ("Configuration", "1.0.0"),
     }
 
     missing = []
-    for package, desc in required.items():
+    outdated = []
+
+    for package, (desc, min_version) in required.items():
         try:
             if package == "tkinter":
                 import tkinter
             else:
-                __import__(package)
+                module = __import__(package)
+                if min_version:
+                    version = getattr(module, "__version__", "0.0.0")
+                    if version < min_version:
+                        outdated.append(f"{package} ({version} < {min_version})")
+
         except ImportError:
             missing.append(f"{package} ({desc})")
 
-    if missing:
-        print("❌ Missing dependencies:")
-        for item in missing:
-            print(f"   - {item}")
-        print("\n💡 Install with: pip install pandas openpyxl sqlalchemy")
+    if missing or outdated:
+        print("\n❌ Dependency Check Failed:")
+
+        if missing:
+            print("\nMissing Dependencies:")
+            for item in missing:
+                print(f"   - {item}")
+
+        if outdated:
+            print("\nOutdated Dependencies:")
+            for item in outdated:
+                print(f"   - {item}")
+
+        print("\n💡 Fix with: pip install -r requirements.txt")
         return False
+
     return True
 
 

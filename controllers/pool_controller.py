@@ -22,9 +22,11 @@ class PoolController:
         self.current_excel_file: Optional[Dict[str, Any]] = None
         self.field_mappings: Dict[str, str] = {}
         self.is_connected = False
-        self.operation_queue = queue.Queue()
+        self._lock = threading.Lock()  # Add thread lock
+        self._operation_queue = queue.Queue()
         self._processing_thread = None
         self._shutdown = False
+        self._should_stop = False
 
         # Status tracking
         self.last_operation = {
@@ -52,7 +54,7 @@ class PoolController:
         def process_operations():
             while not self._shutdown:
                 try:
-                    operation = self.operation_queue.get(timeout=1)
+                    operation = self._operation_queue.get(timeout=1)
                     self._execute_operation(operation)
                 except queue.Empty:
                     continue
@@ -472,118 +474,138 @@ class PoolController:
             logger.error("Cannot import: not connected or no file loaded")
             return False
 
-        def import_async():
-            try:
-                self._update_operation_status(
-                    "data_import", "starting", 5, "Starting data import..."
-                )
-                self.emit_event(
-                    "import_progress", {"progress": 5, "status": "Starting import..."}
-                )
+        with self._lock:
 
-                # Read Excel file completely
-                from services.excel_service import ExcelService
-
-                excel_service = ExcelService()
-
-                self._update_operation_status(
-                    "data_import", "reading", 20, "Reading Excel file..."
-                )
-                self.emit_event(
-                    "import_progress",
-                    {"progress": 20, "status": "Reading Excel file..."},
-                )
-
-                data = excel_service.read_file(
-                    self.current_excel_file["file_path"], options
-                )
-
-                if not data:
-                    raise Exception("No data found in Excel file")
-
-                self._update_operation_status(
-                    "data_import", "processing", 40, "Processing data..."
-                )
-                self.emit_event(
-                    "import_progress", {"progress": 40, "status": "Processing data..."}
-                )
-
-                # Apply field mappings
-                if self.field_mappings:
-                    mapped_data = []
-                    for row in data:
-                        mapped_row = {}
-                        for excel_col, value in row.items():
-                            db_col = self.field_mappings.get(excel_col, excel_col)
-                            mapped_row[db_col] = value
-                        mapped_data.append(mapped_row)
-                    data = mapped_data
-
-                self._update_operation_status(
-                    "data_import", "creating_table", 60, "Creating/updating table..."
-                )
-                self.emit_event(
-                    "import_progress", {"progress": 60, "status": "Creating table..."}
-                )
-
-                # Create table if needed
-                if options.get("mode") == "replace":
-                    # For replace mode, we'll let bulk_insert handle table creation
-                    pass
-
-                self._update_operation_status(
-                    "data_import", "inserting", 80, "Inserting data..."
-                )
-                self.emit_event(
-                    "import_progress", {"progress": 80, "status": "Inserting data..."}
-                )
-
-                # Bulk insert data
-                batch_size = options.get("batch_size", 1000)
-                success = self.pool_service.bulk_insert(table_name, data, batch_size)
-
-                if success:
-                    self.stats["records_imported"] += len(data)
+            def import_job():
+                try:
                     self._update_operation_status(
-                        "data_import", "completed", 100, "Import completed successfully"
+                        "data_import", "starting", 5, "Starting data import..."
                     )
-
                     self.emit_event(
                         "import_progress",
-                        {"progress": 100, "status": "Import completed!"},
+                        {"progress": 5, "status": "Starting import..."},
+                    )
+
+                    # Read Excel file completely
+                    from services.excel_service import ExcelService
+
+                    excel_service = ExcelService()
+
+                    self._update_operation_status(
+                        "data_import", "reading", 20, "Reading Excel file..."
                     )
                     self.emit_event(
-                        "import_completed",
-                        {
-                            "table": table_name,
-                            "rows": len(data),
-                            "timestamp": datetime.now().isoformat(),
-                        },
+                        "import_progress",
+                        {"progress": 20, "status": "Reading Excel file..."},
                     )
 
-                    logger.info(
-                        f"Successfully imported {len(data)} rows to {table_name}"
+                    data = excel_service.read_file(
+                        self.current_excel_file["file_path"], options
                     )
-                    return True
-                else:
-                    raise Exception("Bulk insert operation failed")
 
-            except Exception as e:
-                self.stats["errors_encountered"] += 1
-                error_msg = f"Import failed: {str(e)}"
-                self._update_operation_status("data_import", "failed", 0, error_msg)
+                    if not data:
+                        raise Exception("No data found in Excel file")
 
-                self.emit_event(
-                    "import_progress", {"progress": 0, "status": "Import failed"}
-                )
-                self.emit_event("import_error", {"error": error_msg})
+                    self._update_operation_status(
+                        "data_import", "processing", 40, "Processing data..."
+                    )
+                    self.emit_event(
+                        "import_progress",
+                        {"progress": 40, "status": "Processing data..."},
+                    )
 
-                logger.error(error_msg)
-                return False
+                    # Apply field mappings
+                    if self.field_mappings:
+                        mapped_data = []
+                        for row in data:
+                            mapped_row = {}
+                            for excel_col, value in row.items():
+                                db_col = self.field_mappings.get(excel_col, excel_col)
+                                mapped_row[db_col] = value
+                            mapped_data.append(mapped_row)
+                        data = mapped_data
 
-        # Run import in background thread
-        threading.Thread(target=import_async, daemon=True).start()
-        return True
+                    self._update_operation_status(
+                        "data_import",
+                        "creating_table",
+                        60,
+                        "Creating/updating table...",
+                    )
+                    self.emit_event(
+                        "import_progress",
+                        {"progress": 60, "status": "Creating table..."},
+                    )
+
+                    # Create table if needed
+                    if options.get("mode") == "replace":
+                        # For replace mode, we'll let bulk_insert handle table creation
+                        pass
+
+                    self._update_operation_status(
+                        "data_import", "inserting", 80, "Inserting data..."
+                    )
+                    self.emit_event(
+                        "import_progress",
+                        {"progress": 80, "status": "Inserting data..."},
+                    )
+
+                    # Bulk insert data
+                    batch_size = options.get("batch_size", 1000)
+                    success = self.pool_service.bulk_insert(
+                        table_name, data, batch_size
+                    )
+
+                    if success:
+                        self.stats["records_imported"] += len(data)
+                        self._update_operation_status(
+                            "data_import",
+                            "completed",
+                            100,
+                            "Import completed successfully",
+                        )
+
+                        self.emit_event(
+                            "import_progress",
+                            {"progress": 100, "status": "Import completed!"},
+                        )
+                        self.emit_event(
+                            "import_completed",
+                            {
+                                "table": table_name,
+                                "rows": len(data),
+                                "timestamp": datetime.now().isoformat(),
+                            },
+                        )
+
+                        logger.info(
+                            f"Successfully imported {len(data)} rows to {table_name}"
+                        )
+                        return True
+                    else:
+                        raise Exception("Bulk insert operation failed")
+
+                except Exception as e:
+                    self.stats["errors_encountered"] += 1
+                    error_msg = f"Import failed: {str(e)}"
+                    self._update_operation_status("data_import", "failed", 0, error_msg)
+
+                    self.emit_event(
+                        "import_progress", {"progress": 0, "status": "Import failed"}
+                    )
+                    self.emit_event("import_error", {"error": error_msg})
+
+                    logger.error(error_msg)
+                    return False
+
+            # Start import thread
+            self._should_stop = False
+            thread = threading.Thread(target=import_job, daemon=True)
+            thread.start()
+            return True
+
+    def stop_import(self):
+        """Stop ongoing import"""
+        self._should_stop = True
 
     # ================ STATUS AND STATISTICS ================
     def _update_operation_status(

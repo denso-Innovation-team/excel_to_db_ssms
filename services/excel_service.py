@@ -3,11 +3,13 @@ services/excel_service.py
 Excel Processing Service - Clean & Focused - FIXED
 """
 
+from typing import Dict, Any, List
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
 from datetime import datetime
 import logging
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
 
 logger = logging.getLogger(__name__)
 
@@ -364,177 +366,193 @@ class ExcelService:
         return False
 
     def create_template(
-        self, template_type: str, output_path: str, rows: int = 100
-    ) -> bool:
-        """Create Excel template file"""
+        self,
+        template_type: str,
+        output_path: str,
+        rows: int = 100,
+    ) -> Dict[str, Any]:  # Change return type to Dict
+        """Create Excel template with improved functionality"""
+        templates = {
+            "employees": {
+                "columns": [
+                    "employee_id",
+                    "first_name",
+                    "last_name",
+                    "email",
+                    "department",
+                    "position",
+                    "salary",
+                    "hire_date",
+                    "active",
+                ],
+                "sample_data": [
+                    [
+                        "EMP001",
+                        "John",
+                        "Doe",
+                        "john.doe@company.com",
+                        "IT",
+                        "Developer",
+                        50000,
+                        "2023-01-15",
+                        True,
+                    ],
+                    [
+                        "EMP002",
+                        "Jane",
+                        "Smith",
+                        "jane.smith@company.com",
+                        "HR",
+                        "Manager",
+                        65000,
+                        "2022-06-10",
+                        True,
+                    ],
+                    [
+                        "EMP003",
+                        "สมชาย",
+                        "ใจดี",
+                        "somchai@company.com",
+                        "Production",
+                        "Operator",
+                        35000,
+                        "2023-03-20",
+                        True,
+                    ],
+                ],
+                "validations": {
+                    "employee_id": "Must be unique",
+                    "email": "Valid email format required",
+                    "salary": "Numeric value > 0",
+                    "hire_date": "YYYY-MM-DD format",
+                },
+            },
+            "sales": {
+                "columns": [
+                    "transaction_id",
+                    "customer_name",
+                    "product",
+                    "quantity",
+                    "unit_price",
+                    "total_amount",
+                    "sale_date",
+                ],
+                "sample_data": [
+                    [
+                        "TXN001",
+                        "ABC Corp",
+                        "Widget A",
+                        10,
+                        25.50,
+                        255.00,
+                        "2024-01-01",
+                    ],
+                    [
+                        "TXN002",
+                        "XYZ Ltd",
+                        "Gadget B",
+                        5,
+                        100.00,
+                        500.00,
+                        "2024-01-02",
+                    ],
+                    [
+                        "TXN003",
+                        "DEF Inc",
+                        "Tool C",
+                        15,
+                        15.75,
+                        236.25,
+                        "2024-01-03",
+                    ],
+                ],
+            },
+            "inventory": {
+                "columns": [
+                    "product_id",
+                    "product_name",
+                    "category",
+                    "current_stock",
+                    "unit_price",
+                    "supplier",
+                    "warehouse",
+                ],
+                "sample_data": [
+                    [
+                        "PROD001",
+                        "Engine Part A1",
+                        "Auto Parts",
+                        150,
+                        500.00,
+                        "DENSO",
+                        "Bangkok",
+                    ],
+                    [
+                        "PROD002",
+                        "Brake System B2",
+                        "Brake Parts",
+                        85,
+                        1200.00,
+                        "Bosch",
+                        "Chonburi",
+                    ],
+                    [
+                        "PROD003",
+                        "ECU Module C3",
+                        "Electronics",
+                        45,
+                        2500.00,
+                        "Continental",
+                        "Rayong",
+                    ],
+                ],
+            },
+        }
+
         try:
-            templates = {
-                "employees": {
-                    "columns": [
-                        "employee_id",
-                        "first_name",
-                        "last_name",
-                        "email",
-                        "department",
-                        "position",
-                        "salary",
-                        "hire_date",
-                        "active",
-                    ],
-                    "sample_data": [
-                        [
-                            "EMP001",
-                            "John",
-                            "Doe",
-                            "john.doe@company.com",
-                            "IT",
-                            "Developer",
-                            50000,
-                            "2023-01-15",
-                            True,
-                        ],
-                        [
-                            "EMP002",
-                            "Jane",
-                            "Smith",
-                            "jane.smith@company.com",
-                            "HR",
-                            "Manager",
-                            65000,
-                            "2022-06-10",
-                            True,
-                        ],
-                        [
-                            "EMP003",
-                            "สมชาย",
-                            "ใจดี",
-                            "somchai@company.com",
-                            "Production",
-                            "Operator",
-                            35000,
-                            "2023-03-20",
-                            True,
-                        ],
-                    ],
-                },
-                "sales": {
-                    "columns": [
-                        "transaction_id",
-                        "customer_name",
-                        "product",
-                        "quantity",
-                        "unit_price",
-                        "total_amount",
-                        "sale_date",
-                    ],
-                    "sample_data": [
-                        [
-                            "TXN001",
-                            "ABC Corp",
-                            "Widget A",
-                            10,
-                            25.50,
-                            255.00,
-                            "2024-01-01",
-                        ],
-                        [
-                            "TXN002",
-                            "XYZ Ltd",
-                            "Gadget B",
-                            5,
-                            100.00,
-                            500.00,
-                            "2024-01-02",
-                        ],
-                        [
-                            "TXN003",
-                            "DEF Inc",
-                            "Tool C",
-                            15,
-                            15.75,
-                            236.25,
-                            "2024-01-03",
-                        ],
-                    ],
-                },
-                "inventory": {
-                    "columns": [
-                        "product_id",
-                        "product_name",
-                        "category",
-                        "current_stock",
-                        "unit_price",
-                        "supplier",
-                        "warehouse",
-                    ],
-                    "sample_data": [
-                        [
-                            "PROD001",
-                            "Engine Part A1",
-                            "Auto Parts",
-                            150,
-                            500.00,
-                            "DENSO",
-                            "Bangkok",
-                        ],
-                        [
-                            "PROD002",
-                            "Brake System B2",
-                            "Brake Parts",
-                            85,
-                            1200.00,
-                            "Bosch",
-                            "Chonburi",
-                        ],
-                        [
-                            "PROD003",
-                            "ECU Module C3",
-                            "Electronics",
-                            45,
-                            2500.00,
-                            "Continental",
-                            "Rayong",
-                        ],
-                    ],
-                },
+            template = templates.get(template_type)
+            if not template:
+                return {
+                    "success": False,
+                    "message": "Template type not found",
+                }
+
+            # Create workbook with validation
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Data"
+
+            # Add headers
+            for col, header in enumerate(template["columns"], 1):
+                cell = ws.cell(row=1, column=col, value=header)
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(start_color="E2E8F0", fill_type="solid")
+
+            # Add format guide
+            guide_sheet = wb.create_sheet("Guide")
+            guide_sheet.append(["Column", "Format", "Validation"])
+            for col in template["columns"]:
+                guide_sheet.append(
+                    [
+                        col,
+                        template.get("formats", {}).get(col, "Text"),
+                        template["validations"].get(col, ""),
+                    ]
+                )
+
+            # Save template
+            wb.save(output_path)
+            return {
+                "success": True,
+                "message": "Template created successfully",
+                "file_path": output_path,
             }
 
-            if template_type not in templates:
-                return False
-
-            template = templates[template_type]
-
-            # Create DataFrame with sample data
-            df = pd.DataFrame(template["sample_data"], columns=template["columns"])
-
-            # Extend to requested number of rows
-            if rows > len(df):
-                # Repeat and modify sample data
-                extended_data = []
-                for i in range(rows):
-                    row_index = i % len(template["sample_data"])
-                    row = template["sample_data"][row_index].copy()
-
-                    # Modify ID fields to be unique
-                    if template_type == "employees":
-                        row[0] = f"EMP{i+1:03d}"
-                    elif template_type == "sales":
-                        row[0] = f"TXN{i+1:03d}"
-                    elif template_type == "inventory":
-                        row[0] = f"PROD{i+1:03d}"
-
-                    extended_data.append(row)
-
-                df = pd.DataFrame(extended_data, columns=template["columns"])
-
-            # Save to Excel
-            df.to_excel(output_path, index=False, engine="openpyxl")
-            logger.info(f"Created template '{template_type}' with {len(df)} rows")
-            return True
-
         except Exception as e:
-            logger.error(f"Failed to create template: {e}")
-            return False
+            return {
+                "success": False,
+                "message": f"Error creating template: {str(e)}",
+            }
 
     def batch_process_files(
         self, file_paths: List[str], output_dir: str
@@ -650,6 +668,9 @@ def convert_excel_to_csv(excel_path: str, csv_path: str) -> bool:
     service = ExcelService()
     try:
         data = service.read_file(excel_path)
+        return service.export_data(data, csv_path, "csv")
+    except Exception:
+        return False
         return service.export_data(data, csv_path, "csv")
     except Exception:
         return False

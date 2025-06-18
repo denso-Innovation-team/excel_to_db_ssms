@@ -8,6 +8,7 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 from pathlib import Path
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -97,51 +98,18 @@ class MainWindow:
 
     def create_pool_tabs(self):
         """Create Pool System specific tabs"""
-
-        # 1. DATABASE CONNECTION TAB
-        conn_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(conn_frame, text="🔗 Database")
-
-        # Database type selection
-        type_frame = ttk.LabelFrame(conn_frame, text="Database Type", padding="10")
-        type_frame.pack(fill="x", pady=(0, 10))
-
-        self.db_type = tk.StringVar(value="sqlite")
-        ttk.Radiobutton(
-            type_frame,
-            text="SQLite (Local File)",
-            variable=self.db_type,
-            value="sqlite",
-            command=self.on_db_type_change,
-        ).pack(anchor="w")
-        ttk.Radiobutton(
-            type_frame,
-            text="SQL Server (SSMS)",
-            variable=self.db_type,
-            value="sqlserver",
-            command=self.on_db_type_change,
-        ).pack(anchor="w")
-
-        # Connection details
-        self.conn_details_frame = ttk.LabelFrame(
-            conn_frame, text="Connection Details", padding="10"
+        
+        # 1. Database Tab
+        from gui.components.database_tab import DatabaseTab
+        self.db_tab = DatabaseTab(
+            self.notebook,
+            callbacks={
+                "test": self.test_connection,
+                "connect": self.connect_database,
+                "disconnect": self.disconnect_database
+            }
         )
-        self.conn_details_frame.pack(fill="x", pady=(0, 10))
-        self.create_connection_fields()
-
-        # Connection buttons
-        conn_btn_frame = ttk.Frame(conn_frame)
-        conn_btn_frame.pack(fill="x")
-
-        ttk.Button(
-            conn_btn_frame, text="Test Connection", command=self.test_connection
-        ).pack(side="left", padx=(0, 10))
-        ttk.Button(conn_btn_frame, text="Connect", command=self.connect_database).pack(
-            side="left", padx=(0, 10)
-        )
-        ttk.Button(
-            conn_btn_frame, text="Disconnect", command=self.disconnect_database
-        ).pack(side="left")
+        self.notebook.add(self.db_tab.get_widget(), text="🔗 Database")
 
         # 2. EXCEL FILE TAB
         excel_frame = ttk.Frame(self.notebook, padding="10")
@@ -331,41 +299,6 @@ class MainWindow:
     def create_general_tabs(self):
         """Create general system tabs"""
 
-        # MOCK DATA TAB (from original system)
-        mock_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(mock_frame, text="🎲 Mock Data")
-
-        mock_info = ttk.Label(
-            mock_frame,
-            text="Mock Data Generator\nGenerate realistic test data for development",
-            font=("Arial", 12),
-            justify="center",
-        )
-        mock_info.pack(pady=50)
-
-        ttk.Button(
-            mock_frame,
-            text="Generate Employee Data",
-            command=lambda: self.generate_mock_data("employees"),
-        ).pack(pady=10)
-        ttk.Button(
-            mock_frame,
-            text="Generate Sales Data",
-            command=lambda: self.generate_mock_data("sales"),
-        ).pack(pady=10)
-
-        # ANALYTICS TAB (placeholder)
-        analytics_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(analytics_frame, text="📈 Analytics")
-
-        analytics_info = ttk.Label(
-            analytics_frame,
-            text="Data Analytics\nAnalyze imported data and generate reports",
-            font=("Arial", 12),
-            justify="center",
-        )
-        analytics_info.pack(pady=50)
-
         # LOGS TAB
         logs_frame = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(logs_frame, text="📝 Logs")
@@ -382,106 +315,11 @@ class MainWindow:
         # Load recent logs
         self.load_recent_logs()
 
-    def create_connection_fields(self):
-        """Create connection input fields based on database type"""
-        # Clear existing widgets
-        for widget in self.conn_details_frame.winfo_children():
-            widget.destroy()
-
-        if self.db_type.get() == "sqlite":
-            ttk.Label(self.conn_details_frame, text="Database File:").grid(
-                row=0, column=0, sticky="w", pady=5
-            )
-            self.sqlite_path = tk.StringVar(value="data/denso888.db")
-            ttk.Entry(
-                self.conn_details_frame, textvariable=self.sqlite_path, width=60
-            ).grid(row=0, column=1, sticky="ew", padx=(10, 0))
-
-            self.conn_details_frame.grid_columnconfigure(1, weight=1)
-
-        else:  # SQL Server
-            ttk.Label(self.conn_details_frame, text="Server:").grid(
-                row=0, column=0, sticky="w", pady=2
-            )
-            self.server = tk.StringVar(value="localhost\\SQLEXPRESS")
-            ttk.Entry(self.conn_details_frame, textvariable=self.server, width=40).grid(
-                row=0, column=1, sticky="ew", padx=(10, 0)
-            )
-
-            ttk.Label(self.conn_details_frame, text="Database:").grid(
-                row=1, column=0, sticky="w", pady=2
-            )
-            self.database = tk.StringVar()
-            self.db_combo = ttk.Combobox(
-                self.conn_details_frame, textvariable=self.database, width=38
-            )
-            self.db_combo.grid(row=1, column=1, sticky="ew", padx=(10, 0))
-
-            ttk.Label(self.conn_details_frame, text="Username:").grid(
-                row=2, column=0, sticky="w", pady=2
-            )
-            self.username = tk.StringVar()
-            ttk.Entry(
-                self.conn_details_frame, textvariable=self.username, width=40
-            ).grid(row=2, column=1, sticky="ew", padx=(10, 0))
-
-            ttk.Label(self.conn_details_frame, text="Password:").grid(
-                row=3, column=0, sticky="w", pady=2
-            )
-            self.password = tk.StringVar()
-            ttk.Entry(
-                self.conn_details_frame, textvariable=self.password, show="*", width=40
-            ).grid(row=3, column=1, sticky="ew", padx=(10, 0))
-
-            self.conn_details_frame.grid_columnconfigure(1, weight=1)
-
-    def create_status_bar(self):
-        """Create status bar"""
-        self.status_bar = ttk.Frame(self.root)
-        self.status_bar.grid(row=2, column=0, sticky="ew", padx=5, pady=2)
-
-        self.status_text = ttk.Label(
-            self.status_bar, text="Ready - DENSO888 Professional System"
-        )
-        self.status_text.pack(side="left")
-
-        # Connection stats
-        self.stats_text = ttk.Label(self.status_bar, text="")
-        self.stats_text.pack(side="right")
-
-    def setup_events(self):
-        """Setup event handlers"""
-        if self.pool_controller:
-            self.pool_controller.register_callback(
-                "database_connected", self.on_database_connected
-            )
-            self.pool_controller.register_callback("excel_loaded", self.on_excel_loaded)
-            self.pool_controller.register_callback(
-                "import_progress", self.on_import_progress
-            )
-            self.pool_controller.register_callback(
-                "import_completed", self.on_import_completed
-            )
-            self.pool_controller.register_callback("import_error", self.on_import_error)
-
-    # Database Operations
-    def on_db_type_change(self):
-        """Handle database type change"""
-        self.create_connection_fields()
-
     def get_connection_config(self):
         """Get connection configuration"""
-        if self.db_type.get() == "sqlite":
-            return {"db_type": "sqlite", "sqlite_path": self.sqlite_path.get()}
-        else:
-            return {
-                "db_type": "sqlserver",
-                "host": self.server.get(),
-                "database": self.database.get(),
-                "username": self.username.get() or None,
-                "password": self.password.get() or None,
-            }
+        return self.db_tab.get_config()
 
+    # Database Operations
     def test_connection(self):
         """Test database connection"""
         config = self.get_connection_config()
@@ -794,38 +632,133 @@ class MainWindow:
         if self.pool_controller:
             self.pool_controller.import_data(table_name, options)
 
-    # Mock Data Operations
-    def generate_mock_data(self, data_type):
-        """Generate mock data"""
-        if not self.connected:
-            messagebox.showwarning("Warning", "Please connect to database first")
-            return
+    # Event Handlers
+    def on_database_connected(self, data):
+        """Handle database connected event"""
+        pass  # Already handled in handle_connect_result
 
-        # Simple mock data generation dialog
-        count = tk.simpledialog.askinteger(
-            "Mock Data",
-            f"How many {data_type} records to generate?",
-            initialvalue=1000,
-            minvalue=1,
-            maxvalue=100000,
+    def on_excel_loaded(self, data):
+        """Handle Excel loaded event"""
+        pass  # Already handled in handle_excel_result
+
+    def on_import_progress(self, data):
+        """Handle import progress"""
+        progress = data.get("progress", 0)
+        status = data.get("status", "Processing...")
+
+        self.progress_var.set(progress)
+        self.progress_label.config(text=status)
+        self.update_status(f"Import: {progress}% - {status}")
+
+    def on_import_completed(self, data):
+        """Handle import completion"""
+        self.import_in_progress = False
+        self.import_btn.config(state="normal", text="🚀 Start Import")
+
+        rows = data.get("rows", 0)
+        table = data.get("table", "")
+
+        result_msg = f"✅ Import completed successfully!\nTable: {table}\nRows imported: {rows:,}"
+
+        self.results_text.config(state="normal")
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.results_text.insert(
+            tk.END, f"\n[{timestamp}] {result_msg}\n" + "=" * 60 + "\n"
         )
-        if count:
+        self.results_text.config(state="disabled")
+        self.results_text.see(tk.END)
 
-            def generate_async():
-                if self.controller and hasattr(self.controller, "generate_mock_data"):
-                    success = self.controller.generate_mock_data(
-                        data_type, count, f"mock_{data_type}"
-                    )
-                    message = (
-                        f"Generated {count} {data_type} records"
-                        if success
-                        else "Generation failed"
-                    )
-                    self.root.after(
-                        0, lambda: messagebox.showinfo("Mock Data", message)
-                    )
+        self.update_status("Import completed successfully")
+        messagebox.showinfo("Import Complete", result_msg)
 
-            threading.Thread(target=generate_async, daemon=True).start()
+        # Update connection stats
+        if self.pool_controller:
+            stats = self.pool_controller.get_connection_stats()
+            self.stats_text.config(
+                text=f"Pool: {stats.get('in_use_connections', 0)}/{stats.get('total_connections', 0)} connections"
+            )
+
+    def on_import_error(self, data):
+        """Handle import error"""
+        self.import_in_progress = False
+        self.import_btn.config(state="normal", text="🚀 Start Import")
+
+        error = data.get("error", "Unknown error")
+        error_msg = f"❌ Import failed: {error}"
+
+        self.results_text.config(state="normal")
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.results_text.insert(
+            tk.END, f"\n[{timestamp}] {error_msg}\n" + "=" * 60 + "\n"
+        )
+        self.results_text.config(state="disabled")
+        self.results_text.see(tk.END)
+
+        self.update_status("Import failed")
+        messagebox.showerror("Import Error", error_msg)
+
+    # Utility Methods
+    def load_recent_logs(self):
+        """Load recent application logs"""
+        try:
+            log_file = (
+                Path("logs") / f"denso888_{datetime.now().strftime('%Y%m%d')}.log"
+            )
+            if log_file.exists():
+                with open(log_file, "r", encoding="utf-8") as f:
+                    logs = f.read()
+
+                self.log_text.config(state="normal")
+                self.log_text.delete(1.0, tk.END)
+                self.log_text.insert(1.0, logs)
+                self.log_text.config(state="disabled")
+                self.log_text.see(tk.END)
+        except Exception as e:
+            logger.error(f"Failed to load logs: {e}")
+
+    def update_status(self, message):
+        """Update status bar"""
+        self.status_text.config(text=message)
+
+        # Auto-refresh logs periodically
+        self.root.after(5000, self.refresh_logs)
+
+    def refresh_logs(self):
+        """Refresh logs display"""
+        if (
+            self.notebook.index(self.notebook.select()) == len(self.notebook.tabs()) - 1
+        ):  # Logs tab is active
+            self.load_recent_logs()
+
+    def run(self):
+        """Start the GUI application"""
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # Show startup message
+        self.update_status("DENSO888 Professional System Ready")
+
+        # Start main loop
+        self.root.mainloop()
+
+    def on_closing(self):
+        """Handle window closing"""
+        if self.import_in_progress:
+            if not messagebox.askyesno(
+                "Exit", "Import in progress. Are you sure you want to exit?"
+            ):
+                return
+
+        try:
+            # Cleanup controllers
+            if self.pool_controller:
+                self.pool_controller.cleanup()
+            if self.controller:
+                self.controller.cleanup()
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")
+
+        self.root.destroy()
+            self.pool_controller.import_data(table_name, options)
 
     # Event Handlers
     def on_database_connected(self, data):
@@ -868,6 +801,73 @@ class MainWindow:
 
         # Update connection stats
         if self.pool_controller:
+            stats = self.pool_controller.get_connection_stats()
+            self.stats_text.config(
+                text=f"Pool: {stats.get('in_use_connections', 0)}/{stats.get('total_connections', 0)} connections"
+            )
+
+    def on_import_error(self, data):
+        """Handle import error"""
+        self.import_in_progress = False
+        self.import_btn.config(state="normal", text="🚀 Start Import")
+
+        error = data.get("error", "Unknown error")
+        error_msg = f"❌ Import failed: {error}"
+
+        self.results_text.config(state="normal")
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.results_text.insert(
+            tk.END, f"\n[{timestamp}] {error_msg}\n" + "=" * 60 + "\n"
+        )
+        self.results_text.config(state="disabled")
+        self.results_text.see(tk.END)
+
+        self.update_status("Import failed")
+        messagebox.showerror("Import Error", error_msg)
+
+    # Utility Methods
+    def update_status(self, message):
+        """Update status bar"""
+        self.status_text.config(text=message)
+
+        # Auto-refresh logs periodically
+        self.root.after(5000, self.refresh_logs)
+
+    def refresh_logs(self):
+        """Refresh logs display"""
+        if (
+            self.notebook.index(self.notebook.select()) == len(self.notebook.tabs()) - 1
+        ):  # Logs tab is active
+            self.load_recent_logs()
+
+    def run(self):
+        """Start the GUI application"""
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # Show startup message
+        self.update_status("DENSO888 Professional System Ready")
+
+        # Start main loop
+        self.root.mainloop()
+
+    def on_closing(self):
+        """Handle window closing"""
+        if self.import_in_progress:
+            if not messagebox.askyesno(
+                "Exit", "Import in progress. Are you sure you want to exit?"
+            ):
+                return
+
+        try:
+            # Cleanup controllers
+            if self.pool_controller:
+                self.pool_controller.cleanup()
+            if self.controller:
+                self.controller.cleanup()
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")
+
+        self.root.destroy()
             stats = self.pool_controller.get_connection_stats()
             self.stats_text.config(
                 text=f"Pool: {stats.get('in_use_connections', 0)}/{stats.get('total_connections', 0)} connections"

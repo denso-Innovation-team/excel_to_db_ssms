@@ -766,92 +766,6 @@ class ExcelHandler:
                 "file_info": None,
             }
 
-    def repair_file(
-        self,
-        file_path: Union[str, Path],
-        output_path: Optional[Union[str, Path]] = None,
-    ) -> Dict[str, Any]:
-        """Attempt to repair corrupted Excel file"""
-        try:
-            # Try different engines
-            engines = ["openpyxl", "xlrd"]
-
-            for engine in engines:
-                try:
-                    df = pd.read_excel(file_path, engine=engine)
-
-                    # If successful, save repaired version
-                    repair_path = output_path or str(file_path).replace(
-                        ".xlsx", "_repaired.xlsx"
-                    )
-                    df.to_excel(repair_path, index=False, engine="openpyxl")
-
-                    return {
-                        "success": True,
-                        "message": f"File repaired using {engine} engine",
-                        "repaired_file": repair_path,
-                        "rows_recovered": len(df),
-                        "columns_recovered": len(df.columns),
-                    }
-
-                except Exception:
-                    continue
-
-            return {
-                "success": False,
-                "message": "Could not repair file with any available engine",
-            }
-
-        except Exception as e:
-            return {"success": False, "message": f"Repair failed: {str(e)}"}
-
-    def convert_file_format(
-        self, file_path: Union[str, Path], output_format: str = "xlsx"
-    ) -> Dict[str, Any]:
-        """Convert Excel file to different format"""
-        try:
-            supported_formats = {
-                "xlsx": {"engine": "openpyxl", "extension": ".xlsx"},
-                "csv": {"engine": None, "extension": ".csv"},
-                "parquet": {"engine": None, "extension": ".parquet"},
-                "json": {"engine": None, "extension": ".json"},
-            }
-
-            if output_format not in supported_formats:
-                return {
-                    "success": False,
-                    "message": f"Unsupported format. Available: {list(supported_formats.keys())}",
-                }
-
-            # Read source file
-            df = pd.read_excel(file_path)
-
-            # Generate output path
-            input_path = Path(file_path)
-            output_path = input_path.with_suffix(
-                supported_formats[output_format]["extension"]
-            )
-
-            # Convert to target format
-            if output_format == "xlsx":
-                df.to_excel(output_path, index=False, engine="openpyxl")
-            elif output_format == "csv":
-                df.to_csv(output_path, index=False, encoding="utf-8")
-            elif output_format == "parquet":
-                df.to_parquet(output_path, index=False)
-            elif output_format == "json":
-                df.to_json(output_path, orient="records", indent=2)
-
-            return {
-                "success": True,
-                "message": f"File converted to {output_format}",
-                "output_file": str(output_path),
-                "file_size_mb": output_path.stat().st_size / (1024 * 1024),
-            }
-
-        except Exception as e:
-            return {"success": False, "message": f"Conversion failed: {str(e)}"}
-
     def create_template(
         self, template_type: str, output_path: Union[str, Path], rows: int = 10
     ) -> Dict[str, Any]:
@@ -900,6 +814,92 @@ class ExcelHandler:
                     "customer_name": ["ABC Corp", "XYZ Ltd", "DEF Inc"],
                     "product": ["Widget A", "Gadget B", "Tool C"],
                     "quantity": [10, 5, 15],
+                    "unit_price": [25.50, 100.00, 15.75],
+                    "total_amount": [255.00, 500.00, 236.25],
+                    "sale_date": ["2024-01-01", "2024-01-02", "2024-01-03"],
+                },
+            },
+        }
+
+        try:
+            if template_type not in templates:
+                return {
+                    "success": False,
+                    "message": f"Template type not found. Available: {list(templates.keys())}",
+                }
+
+            template_data = templates[template_type]
+
+            # Create DataFrame
+            df_data = {}
+            for col in template_data["columns"]:
+                if col in template_data["sample_data"]:
+                    # Repeat sample data to reach desired rows
+                    sample_values = template_data["sample_data"][col]
+                    df_data[col] = (sample_values * ((rows // len(sample_values)) + 1))[
+                        :rows
+                    ]
+                else:
+                    df_data[col] = [f"Sample {col} {i+1}" for i in range(rows)]
+
+            df = pd.DataFrame(df_data)
+
+            # Save to Excel
+            with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+                df.to_excel(writer, sheet_name="Data", index=False)
+
+                # Add instructions sheet
+                instructions_df = pd.DataFrame(
+                    {
+                        "Instructions": [
+                            f"This is a {template_type} template",
+                            "Replace sample data with your actual data",
+                            "Maintain column structure for best results",
+                            "Date format: YYYY-MM-DD",
+                            "Boolean values: TRUE/FALSE or 1/0",
+                            "Save file before importing to DENSO888",
+                        ]
+                    }
+                )
+                instructions_df.to_excel(writer, sheet_name="Instructions", index=False)
+
+            return {
+                "success": True,
+                "message": f"Template created: {template_type}",
+                "output_file": str(output_path),
+                "rows": rows,
+                "columns": len(template_data["columns"]),
+            }
+
+        except Exception as e:
+            return {"success": False, "message": f"Template creation failed: {str(e)}"}
+
+
+# Utility functions
+def create_sample_excel(
+    file_path: Union[str, Path], template: str = "employees", rows: int = 100
+) -> bool:
+    """Create sample Excel file - wrapper function"""
+    try:
+        handler = ExcelHandler()
+        result = handler.create_template(template, file_path, rows)
+        return result["success"]
+    except Exception as e:
+        logger.error(f"Error creating sample Excel: {e}")
+        return False
+
+
+def validate_excel_file(file_path: Union[str, Path]) -> Dict[str, Any]:
+    """Validate Excel file - wrapper function"""
+    try:
+        handler = ExcelHandler()
+        return handler.validate_file(file_path)
+    except Exception as e:
+        logger.error(f"Error validating Excel file: {e}")
+        return {"valid": False, "errors": [str(e)], "warnings": []}
+        print(f"❌ Error: {e}")
+        return {"valid": False, "errors": [str(e)], "warnings": []}
+        print(f"❌ Error: {e}")
                     "unit_price": [25.50, 100.00, 15.75],
                     "total_amount": [255.00, 500.00, 236.25],
                     "sale_date": ["2024-01-01", "2024-01-02", "2024-01-03"],
